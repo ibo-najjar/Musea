@@ -1,32 +1,63 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
-
-import { Colors } from '@/constants/theme';
+import { useRouter } from "expo-router";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { useThemeColor } from "heroui-native";
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+	const [accent, background, foreground] = useThemeColor([
+		"accent",
+		"background",
+		"muted",
+	]);
 
-  return (
-    <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
+	const ripple = useThemeColor("accent-soft-hover");
 
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
+	const router = useRouter();
+
+	return (
+		<NativeTabs
+			minimizeBehavior="onScrollDown"
+			backgroundColor={background}
+			indicatorColor={ripple}
+			rippleColor={ripple}
+			iconColor={{
+				default: foreground,
+				selected: accent,
+			}}
+			labelStyle={{ selected: { color: accent } }}
+		>
+			<NativeTabs.Trigger name="index">
+				<NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>
+				<NativeTabs.Trigger.Icon
+					src={require("@/assets/images/tabIcons/icon.png")}
+					renderingMode="template"
+				/>
+			</NativeTabs.Trigger>
+			<NativeTabs.Trigger name="(galleries)">
+				<NativeTabs.Trigger.Label hidden>Galleries</NativeTabs.Trigger.Label>
+				<NativeTabs.Trigger.Icon
+					src={require("@/assets/images/tabIcons/gallery.png")}
+					renderingMode="template"
+				/>
+			</NativeTabs.Trigger>
+			<NativeTabs.Trigger name="(settings)">
+				<NativeTabs.Trigger.Label hidden>Settings</NativeTabs.Trigger.Label>
+				<NativeTabs.Trigger.Icon
+					src={require("@/assets/images/tabIcons/user.png")}
+					renderingMode="template"
+				/>
+			</NativeTabs.Trigger>
+			<NativeTabs.Trigger
+				name="add"
+				role="search"
+				// listeners={{
+				// 	tabPress: (e) => {
+				// 		router.navigate("/(modal)/add");
+				// 	},
+				// }}
+			>
+				<NativeTabs.Trigger.Label hidden>Add</NativeTabs.Trigger.Label>
+				<NativeTabs.Trigger.Icon sf={"plus"} renderingMode="template" />
+			</NativeTabs.Trigger>
+		</NativeTabs>
+	);
 }
