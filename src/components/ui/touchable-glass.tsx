@@ -24,6 +24,7 @@ function TouchableGlassNative({
 	onPressOut,
 	disabled,
 	ref,
+	style,
 	...rest
 }: TouchableGlassProps) {
 	const tap = Gesture.Tap()
@@ -45,6 +46,7 @@ function TouchableGlassNative({
 				ref={ref}
 				collapsable={false}
 				isInteractive={!disabled}
+				style={[disabled && { opacity: 0.5 }, style]}
 				{...rest}
 			/>
 		</GestureDetector>

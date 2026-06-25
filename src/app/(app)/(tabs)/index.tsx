@@ -1,6 +1,7 @@
 import { FlashList } from "@shopify/flash-list";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { GlassContainer, GlassView } from "expo-glass-effect";
+import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { Spinner, Typography, useThemeColor } from "heroui-native";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -171,15 +172,30 @@ const SearchBarHeader = ({
 
 	const foreground = useThemeColor("foreground");
 
+	const router = useRouter();
+
 	return (
 		<View
 			className="absolute top-0 right-0 left-0 z-30"
 			style={{ paddingTop: top }}
 		>
 			<StyledGlassContainer
-				className="flex-1 flex-row items-end px-3 gap-2"
+				className="flex-1 flex-row items-end gap-2 px-3"
 				spacing={8}
 			>
+				<Button
+					onPress={() => router.push("/(app)/(modal)/add")}
+					hitSlop={4}
+					className="size-11 rounded-full"
+					isGlass
+					variant="ghost"
+				>
+					<SymbolView
+						name={{ ios: "plus", android: "plus_one" }}
+						className="text-foreground"
+						tintColor={foreground}
+					/>
+				</Button>
 				<StyledGlassView
 					isInteractive
 					className="border-continuous flex-1 flex-row rounded-full"

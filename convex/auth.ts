@@ -13,7 +13,7 @@ export const authComponent = createClient<DataModel>(components.betterAuth);
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
 	return betterAuth({
-		trustedOrigins: ["starterai://"],
+		trustedOrigins: ["starterai://", "musea://"],
 		database: authComponent.adapter(ctx),
 		// Configure simple, non-verified email/password to get started
 		emailAndPassword: {
@@ -25,6 +25,11 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 				prompt: "select_account",
 				clientId: process.env.GOOGLE_CLIENT_ID as string,
 				clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+			},
+			apple: {
+				clientId: process.env.APPLE_CLIENT_ID as string,
+				clientSecret: process.env.APPLE_CLIENT_SECRET as string,
+				appBundleIdentifier: process.env.APPLE_BUNDLE_ID as string,
 			},
 		},
 		plugins: [

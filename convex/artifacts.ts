@@ -7,29 +7,40 @@ import schema from "./schema";
 
 export const createArtifact = mutation({
 	args: {
-		sourceUrl: v.string(),
+		sourceUrl: v.optional(v.string()),
 		title: v.optional(v.string()),
 		description: v.optional(v.string()),
 		image: v.optional(v.string()),
+		videoUrl: v.optional(v.string()),
+		text: v.optional(v.string()),
+		textSize: v.optional(v.union(v.literal("sm"), v.literal("md"), v.literal("lg"), v.literal("xl"))),
+		textWeight: v.optional(v.union(v.literal("normal"), v.literal("medium"), v.literal("semibold"), v.literal("bold"))),
 	},
-	handler: async (ctx, { sourceUrl, title, description, image }): Promise<Id<"artificats">> => {
+	handler: async (ctx, { sourceUrl, title, description, image, videoUrl, text, textSize, textWeight }): Promise<Id<"artificats">> => {
 		const user = await ctx.runQuery(api.auth.getCurrentUser);
 
 		if (!user) {
 			throw new Error("Must be logged in to create an artifact");
 		}
 
+		const isTextOnly = !!text && !sourceUrl;
+
 		const artificatId = await ctx.db.insert("artificats", {
 			source: sourceUrl,
 			userId: user._id,
-			title: title?.trim() || sourceUrl,
+			title: title?.trim() || sourceUrl || text?.slice(0, 80) || "Untitled",
 			description,
 			image,
-			status: "pending",
+			videoUrl,
+			text,
+			textSize,
+			textWeight,
+			status: isTextOnly ? "ready" : "pending",
 		});
 
-		// Schedule AI enrichment immediately after save
-		await ctx.scheduler.runAfter(0, internal.ai.enrichArtifact, { artificatId });
+		if (!isTextOnly) {
+			await ctx.scheduler.runAfter(0, internal.ai.enrichArtifact, { artificatId });
+		}
 
 		return artificatId;
 	},

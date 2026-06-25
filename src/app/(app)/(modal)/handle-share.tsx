@@ -1,32 +1,28 @@
-import { useIncomingShare } from "expo-sharing";
+import { useShareIntentContext } from "expo-share-intent";
+import { useRouter } from "expo-router";
 import { Spinner } from "heroui-native";
-import { ActivityIndicator, View } from "react-native";
-import Image from "@/components/ui/image";
-import { Text } from "@/components/ui/text";
+import { useEffect } from "react";
+import { View } from "react-native";
 
 export default function HandleShareScreen() {
-	const { resolvedSharedPayloads, isResolving } = useIncomingShare();
-	if (isResolving) {
-		return (
-			<View className="flex-1 justify-center items-center">
-				<Spinner size="lg" />
-			</View>
-		);
-	}
+	const { hasShareIntent, shareIntent } = useShareIntentContext();
+	const router = useRouter();
+
+	useEffect(() => {
+		if (!hasShareIntent) return;
+
+		const value = shareIntent.webUrl ?? shareIntent.text ?? "";
+		if (value) {
+			router.replace({
+				pathname: "/(app)/(modal)/add",
+				params: { sharedUrl: value },
+			});
+		}
+	}, [hasShareIntent, shareIntent]);
+
 	return (
-		<View className="flex-1 justify-center items-center">
-			{resolvedSharedPayloads.map((payload, index) => {
-				if (payload.contentType === "image") {
-					return (
-						<Image
-							source={{ uri: payload.contentUri }}
-							style={{ width: 200, height: 200 }}
-							key={index.toString()}
-						/>
-					);
-				}
-				return null;
-			})}
+		<View className="flex-1 items-center justify-center">
+			<Spinner size="lg" />
 		</View>
 	);
 }

@@ -12,6 +12,7 @@ export default defineSchema({
 		title: v.string(),
 		description: v.optional(v.string()),
 		image: v.optional(v.string()),
+		videoUrl: v.optional(v.string()),
 		text: v.optional(v.string()),
 		source: v.optional(v.string()),
 		userId: v.string(),
@@ -21,6 +22,8 @@ export default defineSchema({
 			v.union(v.literal("pending"), v.literal("ready"), v.literal("failed")),
 		),
 		embedding: v.optional(v.array(v.float64())),
+		textSize: v.optional(v.union(v.literal("sm"), v.literal("md"), v.literal("lg"), v.literal("xl"))),
+		textWeight: v.optional(v.union(v.literal("normal"), v.literal("medium"), v.literal("semibold"), v.literal("bold"))),
 	})
 		.index("by_user", ["userId"])
 		.vectorIndex("by_embedding", {

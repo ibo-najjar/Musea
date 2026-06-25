@@ -92,13 +92,31 @@ const SOURCE_BY_HOST: Record<string, SourceConfig> = {
 		svgPath: simpleIcons.siTiktok.path,
 		color: `#${simpleIcons.siTiktok.hex}`,
 	},
+
+	"instagram.com": {
+		key: "instagram",
+		label: "Instagram",
+		svgPath: simpleIcons.siInstagram.path,
+		color: `#${simpleIcons.siInstagram.hex}`,
+	},
+	"instagr.am": {
+		key: "instagram",
+		label: "Instagram",
+		svgPath: simpleIcons.siInstagram.path,
+		color: `#${simpleIcons.siInstagram.hex}`,
+	},
 };
 
 export function getSourceFromUrl(url: string | undefined | null): SourceConfig {
 	if (!url) return UNKNOWN_SOURCE;
 	try {
 		const hostname = new URL(url).hostname.replace(/^www\./, "");
-		return SOURCE_BY_HOST[hostname] ?? UNKNOWN_SOURCE;
+		if (SOURCE_BY_HOST[hostname]) return SOURCE_BY_HOST[hostname];
+		// Match CDN subdomains, e.g. scontent-iad3-1.cdninstagram.com
+		if (hostname.endsWith(".cdninstagram.com") || hostname === "cdninstagram.com") {
+			return SOURCE_BY_HOST["instagram.com"];
+		}
+		return UNKNOWN_SOURCE;
 	} catch {
 		return UNKNOWN_SOURCE;
 	}

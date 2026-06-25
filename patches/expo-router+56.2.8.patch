@@ -1,0 +1,38 @@
+diff --git a/node_modules/expo-router/build/native-tabs/NativeBottomTabsNavigator.js b/node_modules/expo-router/build/native-tabs/NativeBottomTabsNavigator.js
+index f8e0ecd..9a418df 100644
+--- a/node_modules/expo-router/build/native-tabs/NativeBottomTabsNavigator.js
++++ b/node_modules/expo-router/build/native-tabs/NativeBottomTabsNavigator.js
+@@ -119,13 +119,26 @@ function NativeTabsNavigator({ children, backBehavior = defaultBackBehavior, lab
+                     __internalTabsType: 'native',
+                 },
+             });
+-            navigation.dispatch({
+-                type: 'JUMP_TO',
+-                target: state.key,
+-                payload: {
+-                    name: route.name,
+-                },
+-            });
++            if (route.name === 'add') {
++                // Immediately bounce back to the previously focused tab so the
++                // native UITabBarController re-selects it before the JS frame paints.
++                const previousRoute = routes[state.index];
++                navigation.dispatch({
++                    type: 'JUMP_TO',
++                    target: state.key,
++                    payload: {
++                        name: previousRoute.name,
++                    },
++                });
++            } else {
++                navigation.dispatch({
++                    type: 'JUMP_TO',
++                    target: state.key,
++                    payload: {
++                        name: route.name,
++                    },
++                });
++            }
+         }
+     }, [descriptors, navigation, state.key]);
+     return ((0, jsx_runtime_1.jsx)(NavigationContent, { children: (0, jsx_runtime_1.jsx)(exports.NativeTabsContext, { value: true, children: (0, react_1.createElement)(NativeTabsView_1.NativeTabsView, { ...rest, key: visibleTabsKeys, focusedIndex: focusedIndex, 

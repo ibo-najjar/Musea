@@ -1,10 +1,13 @@
 import { ImageZoom } from "@likashefqet/react-native-image-zoom";
 import { useMutation, useQuery } from "convex/react";
+import { useEvent } from "expo";
 import * as Linking from "expo-linking";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { SymbolView } from "expo-symbols";
-import { useThemeColor } from "heroui-native";
+import { useVideoPlayer, VideoView } from "expo-video";
+import * as WebBrowser from "expo-web-browser";
+import { Card, Typography, useThemeColor } from "heroui-native";
 import {
 	Alert,
 	Pressable,
@@ -17,9 +20,17 @@ import { SelectedGalleriesStack } from "@/components/selected-gallery-stack";
 import { SourceIcon } from "@/components/source-icon";
 import EmptyState from "@/components/ui/empty-state";
 import Image from "@/components/ui/image";
+import ScrollView from "@/components/ui/scrollview";
 import { getSourceFromUrl } from "@/lib/sources";
 import { api } from "~/convex/_generated/api";
 import { Id } from "~/convex/_generated/dataModel";
+
+const TEXT_SIZE_TYPE = {
+	sm: "body-xs",
+	md: "body-sm",
+	lg: "body",
+	xl: "h4",
+} as const;
 
 const OVERLAP = 10;
 const MAX_VISIBLE = 5;
@@ -66,30 +77,14 @@ export default function ItemModal() {
 
 	const foreground = useThemeColor("foreground");
 
-	console.log("item", artifact);
+	console.log(
+		"item",
+		artifact ? { ...artifact, embedding: undefined } : artifact,
+	);
 
 	const source = getSourceFromUrl(artifact?.source);
 
 	const galleryCount = artifactGalleries?.length ?? 0;
-
-	// Still loading — don't show "not found"
-	if (artifact === undefined) {
-		return (
-			<>
-				<ModalCloseButton />
-				<Stack.Screen options={{ title: localTitle }} />
-				<View className="flex-1 items-center justify-center bg-background">
-					<Image
-						source={{
-							uri: localImage,
-						}}
-						style={{ height: "100%", width: "100%" }}
-						contentFit="contain"
-					/>
-				</View>
-			</>
-		);
-	}
 
 	if (artifact === null) {
 		return (
@@ -106,100 +101,219 @@ export default function ItemModal() {
 		);
 	}
 
+	const imageUri = artifact?.image ?? localImage;
+	const videoUrl = artifact?.videoUrl;
+
 	return (
 		<>
 			<Stack.Screen options={{ title: localTitle }} />
-			<Stack.Toolbar placement="bottom">
-				<Stack.Toolbar.View>
-					<Pressable
-						style={{
-							width: 32,
-							height: 32,
-						}}
-						className="justify-center px-2 flex-row items-center"
-						onPress={() => {
-							if (artifact.source) {
-								Linking.openURL(artifact.source);
-							}
-						}}
-					>
-						<SourceIcon
-							svgPath={source.svgPath}
-							color={source.color}
-							size={24}
+			{artifact && (
+				<>
+					<Stack.Toolbar placement="bottom">
+						<Stack.Toolbar.View>
+							<Pressable
+								style={{
+									width: 32,
+									height: 32,
+								}}
+								className="justify-center px-2 flex-row items-center"
+								onPress={() => {
+									if (artifact.source) {
+										Linking.openURL(artifact.source);
+									}
+								}}
+							>
+								<SourceIcon
+									svgPath={source.svgPath}
+									color={source.color}
+									size={24}
+								/>
+							</Pressable>
+						</Stack.Toolbar.View>
+						<Stack.Toolbar.Spacer />
+						<Stack.Toolbar.View>
+							<Pressable
+								style={{
+									width: getGalleryStackWidth(galleryCount, SIZE, OVERLAP) + 16, // padding buffer
+									height: 32,
+								}}
+								className="flex-row items-center justify-center px-2"
+								onPress={() => {
+									router.push({
+										pathname: "/(app)/(modal)/artifact-galleries/[artifactId]",
+										params: { artifactId },
+									});
+								}}
+							>
+								<View className="flex-row items-center gap-1">
+									{galleryCount === 0 ? (
+										<SymbolView
+											name={"photo.stack.fill"}
+											size={20}
+											tintColor={foreground}
+										/>
+									) : (
+										<SelectedGalleriesStack
+											galleries={artifactGalleries}
+											SIZE={SIZE}
+										/>
+									)}
+								</View>
+							</Pressable>
+						</Stack.Toolbar.View>
+						<Stack.Toolbar.Spacer />
+						<Stack.Toolbar.Button
+							icon={"square.and.arrow.up"}
+							onPress={async () => {
+								if (artifact.image) {
+									try {
+										await Sharing.shareAsync(artifact.image);
+									} catch (error) {
+										Alert.alert("Error", "Unable to share the image.");
+									}
+								}
+							}}
 						/>
-					</Pressable>
-				</Stack.Toolbar.View>
-				<Stack.Toolbar.Spacer />
-				<Stack.Toolbar.View>
-					<Pressable
-						style={{
-							width: getGalleryStackWidth(galleryCount, SIZE, OVERLAP) + 16, // padding buffer
-							height: 32,
-						}}
-						className="flex-row items-center justify-center px-2"
-						onPress={() => {
-							router.push({
-								pathname: "/(app)/(modal)/artifact-galleries/[artifactId]",
-								params: { artifactId },
-							});
-						}}
-					>
-						<View className="flex-row items-center gap-1">
-							{galleryCount === 0 ? (
-								<SymbolView
-									name={"photo.stack.fill"}
-									size={20}
-									tintColor={foreground}
-								/>
-							) : (
-								<SelectedGalleriesStack
-									galleries={artifactGalleries}
-									SIZE={SIZE}
-								/>
-							)}
-						</View>
-					</Pressable>
-				</Stack.Toolbar.View>
-				<Stack.Toolbar.Spacer />
-				<Stack.Toolbar.Button
-					icon={"square.and.arrow.up"}
-					onPress={async () => {
-						if (artifact.image) {
-							try {
-								await Sharing.shareAsync(artifact.image);
-							} catch (error) {
-								Alert.alert("Error", "Unable to share the image.");
-							}
-						}
-					}}
-				/>
-			</Stack.Toolbar>
-			<Stack.Toolbar placement="left">
-				<Stack.Toolbar.Button icon={"xmark"} onPress={() => router.back()} />
-			</Stack.Toolbar>
-			<Stack.Toolbar placement="right">
-				<Stack.Toolbar.Menu icon={"ellipsis"}>
-					<Stack.Toolbar.MenuAction icon={"arrow.down"}>
-						Download
-					</Stack.Toolbar.MenuAction>
-					<Stack.Toolbar.MenuAction icon={"trash"} destructive>
-						Remove
-					</Stack.Toolbar.MenuAction>
-				</Stack.Toolbar.Menu>
-			</Stack.Toolbar>
+					</Stack.Toolbar>
+					<Stack.Toolbar placement="left">
+						<Stack.Toolbar.Button
+							icon={"xmark"}
+							onPress={() => router.back()}
+						/>
+					</Stack.Toolbar>
+					<Stack.Toolbar placement="right">
+						<Stack.Toolbar.Menu icon={"ellipsis"}>
+							<Stack.Toolbar.MenuAction icon={"arrow.down"}>
+								Download
+							</Stack.Toolbar.MenuAction>
+							<Stack.Toolbar.MenuAction
+								icon={"text.below.photo.fill"}
+								onPress={() => {
+									router.push({
+										pathname: "/(app)/(modal)/artifact-details/[artifactId]",
+										params: { artifactId },
+									});
+								}}
+							>
+								Show Description
+							</Stack.Toolbar.MenuAction>
+							<Stack.Toolbar.MenuAction icon={"trash"} destructive>
+								Remove
+							</Stack.Toolbar.MenuAction>
+						</Stack.Toolbar.Menu>
+					</Stack.Toolbar>
+				</>
+			)}
 			<View className="flex-1 justify-center items-center bg-background">
-				<ImageZoom
-					uri={localImage ? localImage : artifact.image}
-					style={{ height: "100%", width: "100%" }}
-					imageWidth={400}
-					imageHeight={400}
-					minScale={1}
-					maxScale={3}
-				/>
+				{artifact?.text && !imageUri && !videoUrl ? (
+					<Card className="mx-10">
+						<Card.Body>
+							<Typography
+								type={TEXT_SIZE_TYPE[artifact.textSize ?? "md"]}
+								weight={artifact.textWeight ?? "normal"}
+							>
+								{artifact.text}
+							</Typography>
+						</Card.Body>
+					</Card>
+				) : videoUrl ? (
+					<ArtifactVideoPlayer videoUrl={videoUrl} thumbnailUrl={imageUri} />
+				) : (
+					<ImageZoom
+						uri={imageUri ?? ""}
+						style={{ height: "100%", width: "100%" }}
+						imageWidth={400}
+						imageHeight={400}
+						minScale={1}
+						maxScale={3}
+					/>
+				)}
 			</View>
 		</>
 	);
+}
+
+function isDirectVideoUrl(url: string) {
+	return /\.(mp4|m4v|mov|m3u8|webm)(\?|$)/i.test(url);
+}
+
+function InlineVideoPlayer({
+	videoUrl,
+	thumbnailUrl,
+}: {
+	videoUrl: string;
+	thumbnailUrl?: string;
+}) {
+	const { width, height } = useWindowDimensions();
+	const player = useVideoPlayer(videoUrl, (p) => {
+		p.loop = false;
+	});
+	const { status } = useEvent(player, "statusChange", {
+		status: player.status,
+	});
+	const ready = status === "readyToPlay";
+
+	return (
+		<View style={{ width, height }}>
+			<VideoView
+				player={player}
+				style={{ width, height }}
+				fullscreenOptions={{ enable: true }}
+				allowsPictureInPicture
+				contentFit="contain"
+			/>
+			{!ready && thumbnailUrl && (
+				<Image
+					source={{ uri: thumbnailUrl }}
+					style={{ width, height, position: "absolute" }}
+					contentFit="contain"
+				/>
+			)}
+		</View>
+	);
+}
+
+function EmbedVideoPlayer({
+	videoUrl,
+	thumbnailUrl,
+}: {
+	videoUrl: string;
+	thumbnailUrl?: string;
+}) {
+	const { width, height } = useWindowDimensions();
+
+	return (
+		<Pressable
+			className="flex-1 w-full items-center justify-center"
+			onPress={() => WebBrowser.openBrowserAsync(videoUrl)}
+		>
+			<Image
+				source={{ uri: thumbnailUrl }}
+				style={{ width, height: height * 0.6 }}
+				contentFit="contain"
+			/>
+			<View className="absolute items-center justify-center">
+				<View className="bg-black/60 rounded-full p-5">
+					<SymbolView name="play.fill" size={40} tintColor="white" />
+				</View>
+			</View>
+		</Pressable>
+	);
+}
+
+function ArtifactVideoPlayer({
+	videoUrl,
+	thumbnailUrl,
+}: {
+	videoUrl: string;
+	thumbnailUrl?: string;
+}) {
+	if (isDirectVideoUrl(videoUrl)) {
+		return (
+			<InlineVideoPlayer videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} />
+		);
+	}
+	return <EmbedVideoPlayer videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} />;
 }
 
 const GridBoard = ({

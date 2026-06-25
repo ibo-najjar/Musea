@@ -98,9 +98,11 @@
     "@biomejs/biome": "^2.4.12",
     "@types/lodash": "^4.17.24",
     "@types/react": "~19.2.2",
+    "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "postinstall": "patch-package",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",

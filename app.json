@@ -1,11 +1,11 @@
 {
 	"expo": {
-		"name": "starter-ai",
-		"slug": "starter-ai",
+		"name": "Musea",
+		"slug": "Musea",
 		"version": "0.0.1",
 		"orientation": "portrait",
 		"icon": "./assets/images/icon.png",
-		"scheme": "starterai",
+		"scheme": "musea",
 		"userInterfaceStyle": "automatic",
 		"ios": {
 			"icon": "./assets/expo.icon",
@@ -120,7 +120,7 @@
 		"extra": {
 			"router": {},
 			"eas": {
-				"projectId": "380383cb-3497-4502-9e31-cb9578955a2c"
+				"projectId": "bc0d8dba-6403-4495-a213-2222d6008812"
 			}
 		}
 	}

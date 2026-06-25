@@ -20,7 +20,7 @@ export default function TabLayout() {
 		>
 			<Stack.Screen name="(tabs)" />
 			<Stack.Screen name="(modal)/artifact/[artifactId]" />
-			<Stack.Screen name="(modal)/add" />
+
 			<Stack.Screen
 				name="(modal)/create-gallery"
 				options={{
@@ -67,6 +67,46 @@ export default function TabLayout() {
 					sheetAllowedDetents: [1],
 
 					sheetGrabberVisible: true,
+				}}
+			/>
+			<Stack.Screen
+				name="(modal)/artifact-details/[artifactId]"
+				options={{
+					headerShown: true,
+					presentation: "formSheet",
+					sheetAllowedDetents: "fitToContents",
+					title: "",
+					sheetGrabberVisible: true,
+				}}
+			/>
+			<Stack.Screen
+				name="(modal)/handle-share"
+				options={{
+					headerShown: false,
+					presentation: "formSheet",
+					sheetAllowedDetents: [0.8, 1],
+					sheetGrabberVisible: true,
+				}}
+			/>
+			<Stack.Screen
+				name="(modal)/add"
+				options={{
+					headerShown: true,
+					presentation: "formSheet",
+					sheetAllowedDetents: [0.8, 1],
+					title: "",
+					sheetGrabberVisible: true,
+					// unstable_sheetFooter: () => (
+					// 	<View className="absolute bottom-0 w-full p-4">
+					// 		<Button
+					// 			isGlass
+					// 			// isLoading={isSaving}
+					// 			className="w-full"
+					// 		>
+					// 			YOO
+					// 		</Button>
+					// 	</View>
+					// ),
 				}}
 			/>
 		</Stack>

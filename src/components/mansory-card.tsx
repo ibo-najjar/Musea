@@ -1,5 +1,6 @@
 import { Link, useRouter } from "expo-router";
-import { Spinner } from "heroui-native";
+import { SymbolView } from "expo-symbols";
+import { Spinner, Typography } from "heroui-native";
 import { useState } from "react";
 import { Pressable, useWindowDimensions, View } from "react-native";
 import { Doc } from "~/convex/_generated/dataModel";
@@ -9,6 +10,20 @@ import { Text } from "./ui/text";
 
 const NUM_COLUMNS = 2;
 const ITEM_MARGIN = 8;
+
+const TEXT_SIZE_TYPE = {
+	sm: "body-xs",
+	md: "body-sm",
+	lg: "body",
+	xl: "h4",
+} as const;
+
+const TEXT_SIZE_LINES = {
+	sm: 9,
+	md: 7,
+	lg: 6,
+	xl: 4,
+} as const;
 
 const MasonryCard = ({
 	item,
@@ -42,7 +57,20 @@ const MasonryCard = ({
 				<Link.Trigger>
 					<Link.AppleZoom>
 						<Pressable>
-							{item.image ? (
+							{item.text && !item.image ? (
+								<View
+									className="w-full p-3 overflow-hidden"
+									style={{ maxHeight: 160, width: columnWidth }}
+								>
+									<Typography
+										type={TEXT_SIZE_TYPE[item.textSize ?? "md"]}
+										weight={item.textWeight ?? "normal"}
+										numberOfLines={TEXT_SIZE_LINES[item.textSize ?? "md"]}
+									>
+										{item.text}
+									</Typography>
+								</View>
+							) : item.image ? (
 								<Image
 									className="w-full"
 									source={{ uri: item.image }}
@@ -60,6 +88,13 @@ const MasonryCard = ({
 									className="w-full bg-muted/20"
 									style={{ height: 120, width: columnWidth }}
 								/>
+							)}
+							{item.videoUrl && !isPending && (
+								<View className="absolute inset-0 items-center justify-center">
+									<View className="bg-black/50 rounded-full p-2">
+										<SymbolView name="play.fill" size={24} tintColor="white" />
+									</View>
+								</View>
 							)}
 							{isPending && (
 								<Button

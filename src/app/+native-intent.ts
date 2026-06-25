@@ -1,4 +1,4 @@
-import { getSharedPayloads } from "expo-sharing";
+import { getShareExtensionKey } from "expo-share-intent";
 
 export async function redirectSystemPath({
 	path,
@@ -8,13 +8,12 @@ export async function redirectSystemPath({
 	initial: boolean;
 }) {
 	try {
-		// Check if the URL is from the share extension/intent
-		if (new URL(path).hostname === "expo-sharing") {
-			return "/(modal)/handle-share";
+		console.log("Checking for shared payloads...", path, initial);
+		if (path.includes(`dataUrl=${getShareExtensionKey()}`)) {
+			return "/(app)/(modal)/handle-share";
 		}
 		return path;
 	} catch {
-		// Fallback to the root path on error
 		return "/";
 	}
 }

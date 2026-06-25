@@ -7,10 +7,30 @@ import { z } from "zod";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 
+// CDNs that block third-party image fetches (hotlink protection)
+const BLOCKED_IMAGE_HOSTS = [
+	"cdninstagram.com",
+	"fbcdn.net",
+	"pbs.twimg.com",
+	"tiktokcdn.com",
+	"tiktokcdn-us.com",
+];
+
+function isPubliclyFetchableImage(url: string): boolean {
+	try {
+		const hostname = new URL(url).hostname;
+		return !BLOCKED_IMAGE_HOSTS.some((h) => hostname.endsWith(h));
+	} catch {
+		return false;
+	}
+}
+
 const enrichSchema = z.object({
 	title: z
 		.string()
-		.describe("A concise, descriptive title for this saved content (max 80 chars)"),
+		.describe(
+			"A concise, descriptive title for this saved content (max 80 chars)",
+		),
 	summary: z
 		.string()
 		.describe("A 1-2 sentence summary of what this content is about"),
@@ -18,7 +38,9 @@ const enrichSchema = z.object({
 		.array(z.string())
 		.min(2)
 		.max(5)
-		.describe("2-5 relevant topic tags, lowercase, single words or short phrases"),
+		.describe(
+			"2-5 relevant topic tags, lowercase, single words or short phrases",
+		),
 	galleryTopic: z
 		.string()
 		.describe(
@@ -49,7 +71,7 @@ export const enrichArtifact = internalAction({
 								`Current description: ${artifact.description ?? "none"}`,
 							].join("\n"),
 						},
-						...(artifact.image
+						...(artifact.image && isPubliclyFetchableImage(artifact.image)
 							? [{ type: "image" as const, image: artifact.image }]
 							: []),
 					],

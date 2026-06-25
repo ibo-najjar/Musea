@@ -2,8 +2,9 @@ import { authClient } from "@/lib/auth-client";
 import "../global.css";
 
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { Stack } from "expo-router";
+import { ConvexReactClient } from "convex/react";
+import { Stack, useRouter } from "expo-router";
+import { ShareIntentProvider } from "expo-share-intent";
 import { HeroUINativeProvider, useThemeColor } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -11,13 +12,14 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 const convex = new ConvexReactClient(
 	process.env.EXPO_PUBLIC_CONVEX_URL as string,
 	{
-		// Optionally pause queries until the user is authenticated
 		expectAuth: true,
 		unsavedChangesWarning: false,
 	},
 );
+
 export default function RootLayout() {
 	const foreground = useThemeColor("foreground");
+	const router = useRouter();
 
 	const { data: session } = authClient.useSession();
 
@@ -32,24 +34,28 @@ export default function RootLayout() {
 							},
 						}}
 					>
-						<Stack
-							screenOptions={{
-								headerShown: false,
-								headerTransparent: true,
-								title: "",
-								headerBackVisible: false,
-								headerTitleStyle: {
-									color: foreground,
-								},
-							}}
+						<ShareIntentProvider
+							onResetShareIntent={() => router.replace("/")}
 						>
-							<Stack.Protected guard={!!session}>
-								<Stack.Screen name="(app)" />
-							</Stack.Protected>
-							<Stack.Protected guard={!session}>
-								<Stack.Screen name="(auth)" />
-							</Stack.Protected>
-						</Stack>
+							<Stack
+								screenOptions={{
+									headerShown: false,
+									headerTransparent: true,
+									title: "",
+									headerBackVisible: false,
+									headerTitleStyle: {
+										color: foreground,
+									},
+								}}
+							>
+								<Stack.Protected guard={!!session}>
+									<Stack.Screen name="(app)" />
+								</Stack.Protected>
+								<Stack.Protected guard={!session}>
+									<Stack.Screen name="(auth)" />
+								</Stack.Protected>
+							</Stack>
+						</ShareIntentProvider>
 					</HeroUINativeProvider>
 				</GestureHandlerRootView>
 			</KeyboardProvider>
