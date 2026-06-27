@@ -13,11 +13,11 @@
 @layer theme {
   /* Custom theme overrides can go here */
   @variant light {
-    --accent: oklch(0.61 0.1 59.4) /* Custom indigo accent */
+    --accent: oklch(0.64 0.1 59.4) /* Custom indigo accent */
   }
   @variant dark {
     /* Override dark theme colors */
-    --accent: oklch(0.61 0.1 59.4) /* Custom indigo accent */
+    --accent: oklch(0.64 0.1 59.4) /* Custom indigo accent */
   }
 }
 

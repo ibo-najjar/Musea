@@ -2,7 +2,7 @@ import { authClient } from "@/lib/auth-client";
 import "../global.css";
 
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-import { ConvexReactClient } from "convex/react";
+import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { Stack, useRouter } from "expo-router";
 import { ShareIntentProvider } from "expo-share-intent";
 import { HeroUINativeProvider, useThemeColor } from "heroui-native";
@@ -12,11 +12,11 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 const convex = new ConvexReactClient(
 	process.env.EXPO_PUBLIC_CONVEX_URL as string,
 	{
+		// Optionally pause queries until the user is authenticated
 		expectAuth: true,
 		unsavedChangesWarning: false,
 	},
 );
-
 export default function RootLayout() {
 	const foreground = useThemeColor("foreground");
 	const router = useRouter();
@@ -35,7 +35,9 @@ export default function RootLayout() {
 						}}
 					>
 						<ShareIntentProvider
-							onResetShareIntent={() => router.replace("/")}
+							options={{
+								onResetShareIntent: () => router.replace("/"),
+							}}
 						>
 							<Stack
 								screenOptions={{
