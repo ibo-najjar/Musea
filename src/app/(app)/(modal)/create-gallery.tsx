@@ -23,7 +23,7 @@ import { TouchableGlass } from "@/components/ui/touchable-glass";
 import { api } from "~/convex/_generated/api";
 
 const createGallerySchema = z.object({
-	name: z.string().min(1).max(100),
+	name: z.string().min(1, "Name is required").max(100, "Name is too long"),
 });
 
 export type CreateGalleryForm = z.infer<typeof createGallerySchema>;
@@ -97,7 +97,9 @@ export default function CreateBoardSheet() {
 						Be specific — this helps us auto-sort items for you! You can always
 						change it later.
 					</Description>
-					<FieldError isInvalid={!!errors.name}>Heyyyy</FieldError>
+					<FieldError isInvalid={!!errors.name}>
+						{errors.name?.message}
+					</FieldError>
 				</TextField>
 			</ScrollView>
 		</>

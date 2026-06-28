@@ -1,5 +1,5 @@
 // app/(tabs)/add.tsx
-import { useAction, useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import * as Clipboard from "expo-clipboard";
 import {
 	Stack,
@@ -47,6 +47,8 @@ export default function Add() {
 	const { sharedUrl } = useLocalSearchParams<{ sharedUrl?: string }>();
 	const [input, setInput] = useState(sharedUrl ?? "");
 	const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+	const [urlToCheck, setUrlToCheck] = useState<string | null>(null);
+	const [duplicateDismissed, setDuplicateDismissed] = useState(false);
 	const [loadingPreview, setLoadingPreview] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -57,6 +59,10 @@ export default function Add() {
 	const { resetShareIntent } = useShareIntentContext();
 	const getPreview = useAction(api.preview.getPreview);
 	const createItem = useMutation(api.artifacts.createArtifact);
+	const duplicate = useQuery(
+		api.artifacts.findArtifactByUrl,
+		urlToCheck ? { sourceUrl: urlToCheck } : "skip",
+	);
 
 	const requestIdRef = useRef(0);
 	const isUrl = looksLikeUrl(input);
@@ -87,14 +93,17 @@ export default function Add() {
 			setPreviewData(null);
 			setError(null);
 			setLoadingPreview(false);
+			setUrlToCheck(null);
 			return;
 		}
 
 		const currentRequestId = ++requestIdRef.current;
 		setError(null);
 		setLoadingPreview(true);
+		setDuplicateDismissed(false);
 
 		const timer = setTimeout(async () => {
+			setUrlToCheck(trimmed);
 			try {
 				const data = await getPreview({ url: trimmed });
 				if (requestIdRef.current !== currentRequestId) return;
@@ -140,11 +149,15 @@ export default function Add() {
 			}
 			setInput("");
 			setPreviewData(null);
+			setUrlToCheck(null);
 			if (sharedUrl) resetShareIntent();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Couldn't save this item");
 		} finally {
 			setSaving(false);
+			if (router.canDismiss()) {
+				router.dismiss();
+			}
 		}
 	};
 
@@ -185,6 +198,55 @@ export default function Add() {
 				</TextField>
 
 				{error && <Text className="mt-4 text-destructive">{error}</Text>}
+
+				{isUrl && duplicate && !duplicateDismissed && (
+					<Card className="mt-4">
+						<Card.Body className="gap-3">
+							<View className="flex-row items-center gap-3">
+								{duplicate.image ? (
+									<Image
+										source={{ uri: duplicate.image }}
+										className="size-12 rounded-lg bg-surface-tertiary"
+										contentFit="cover"
+									/>
+								) : null}
+								<View className="flex-1">
+									<Text className="font-semibold text-foreground">
+										Already saved
+									</Text>
+									<Text className="text-muted-foreground" numberOfLines={1}>
+										{duplicate.title}
+									</Text>
+								</View>
+							</View>
+							<View className="flex-row gap-2">
+								<Button
+									size="sm"
+									isGlass
+									variant="tertiary"
+									className="flex-1"
+									onPress={() =>
+										router.push({
+											pathname: "/(app)/(modal)/artifact/[artifactId]",
+											params: { artifactId: duplicate._id },
+										})
+									}
+								>
+									View
+								</Button>
+								<Button
+									size="sm"
+									isGlass
+									variant="danger"
+									className="flex-1"
+									onPress={() => setDuplicateDismissed(true)}
+								>
+									Save anyway
+								</Button>
+							</View>
+						</Card.Body>
+					</Card>
+				)}
 
 				{isText && (
 					<View className="mt-4 gap-3">

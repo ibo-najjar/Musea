@@ -43,29 +43,94 @@ Target: **iOS App Store public launch** · Timeline: **2 weeks** · Scale: **1k+
 | Source Icons | Branded SVG icons for 20+ domains |
 | Empty States | No results, nothing saved, not found |
 
-### ⚠️ Incomplete (UI exists, not wired)
+### ✅ Sprint work since shipped (resolved)
 
-| Feature | Issue |
+All Week 1 security/backend work and most of Week 2 features are now done:
+
+| Was | Now |
 |---|---|
-| Gallery edit | `edit-gallery/[galleryId].tsx` reads from `dummy-data.ts` — no `updateGallery` mutation |
-| Gallery delete | Toolbar action exists, `onPress` is empty |
-| Artifact delete | Menu action exists, `onPress` is empty |
-| Create-gallery validation | Error message shows placeholder "Heyyyy" instead of real Zod error |
-| Auto-gallery badge | No visual distinction between AI auto-galleries and user-created galleries |
+| Gallery edit (dummy-data) | `updateGallery` added, screen wired, dummy-data removed ✅ |
+| Gallery delete (empty) | `deleteGallery` (cascade) wired with confirm alert ✅ |
+| Artifact delete (empty) | `deleteArtifact` (cascade) wired with confirm alert ✅ |
+| Create-gallery "Heyyyy" | Real Zod `FieldError` ✅ |
+| Auto-gallery badge | Sparkle "Auto-generated" section + `isAuto`/`dismissed`/`promoteGallery` ✅ |
+| Discover sort/filter | Fully wired multi-select + prominent ellipsis ✅ |
+| Settings account/username/legal/delete | Real username, profile edit, Privacy/Terms screens, `deleteAccount` mutation ✅ |
+| `listArtifacts`/`listGalleries` leaked all users | Auth + ownership guards everywhere ✅ |
+| `addArtifactToGallery` `"anonymous"` | Real `userId` from `ctx.auth` ✅ |
+| `patchArtifact`/`deleteArtifact` no ownership | Ownership checks added ✅ |
+| `patchArtifact` exposed `status`/`embedding` | Validator restricted to safe fields ✅ |
+| `by_creation_time` index bug | Solved via `by_user` + `.order()` ✅ |
+| `.collect()` full scans | Cursor pagination + `.take()` caps ✅ |
+| No rate limiting | `@convex-dev/rate-limiter`, 50/user/day ✅ |
+| Duplicate detection (was planned) | `findArtifactByUrl` + warning card ✅ |
 
-### ❌ Broken / Security Gaps
+### ⛔ Genuinely remaining (see "Remaining Work" below)
 
-| Issue | Location | Severity |
-|---|---|---|
-| `listArtifacts` returns all users' data | `convex/artifacts.ts` | Critical |
-| `listGalleries` returns all users' data | `convex/galleries.ts` | Critical |
-| `addArtifactToGallery` uses hardcoded `userId: "anonymous"` | `convex/galleryArtifacts.ts` | Critical |
-| `patchArtifact` / `deleteArtifact` have no ownership check | `convex/artifacts.ts` | Critical |
-| `patchArtifact` exposes `status` and `embedding` to clients | `convex/artifacts.ts` | High |
-| `listArtifacts` references non-existent `by_creation_time` index | `convex/artifacts.ts` | Bug |
-| All list queries use `.collect()` — full table scans | Multiple files | High |
-| No rate limiting on AI enrichment | `convex/ai.ts` | High |
-| No error boundaries or success/failure toasts | Frontend | Medium |
+| Feature | Status |
+|---|---|
+| Galleries search bar | `Stack.SearchBar` rendered but **dead** — no `onChangeText`/state/filter |
+| Enrich prompt engineering | Functional but thin; text-only artifacts never enriched |
+| Add media from device | `add.tsx` is URL/text only — no photo/video picker |
+| Error handling & toasts | No toast lib, no error boundary; ad-hoc inline errors |
+| App Store prep | `eas.json` not store-configured; no `PrivacyInfo.xcprivacy`; permission strings unaudited |
+
+---
+
+## Remaining Work
+
+### 1. Galleries search bar
+**File:** `src/app/(app)/(tabs)/(galleries)/index.tsx`
+
+The `Stack.SearchBar` already renders but does nothing. Mirror the Discover screen's wiring (`onChangeText` → state → filter), but client-side over the already-loaded `listUserGalleries` results (no backend change — galleries are capped at 100).
+
+- [ ] Add `const [query, setQuery] = useState("")`
+- [ ] `onChangeText={(e) => setQuery(e.nativeEvent.text)}` + `onCancelButtonPress={() => setQuery("")}` on `Stack.SearchBar`
+- [ ] Filter `manual`/`auto` by `title.toLowerCase().includes(query.trim().toLowerCase())` before render
+- [ ] When `query` is non-empty: hide the "Auto-generated" section header if no auto matches; show a "no galleries" empty state if both lists are empty
+- [ ] Verify: typing filters both manual grid and auto section live; clearing restores full list
+
+### 2. Enrich prompt engineering
+**File:** `convex/ai.ts`
+
+Current prompt is a single short system line and never runs for text-only artifacts (`createArtifact` only schedules enrichment when `!isTextOnly`).
+
+- [ ] Strengthen the system prompt: define each field's intent, demand specificity (no generic "Interesting article" titles), enforce lowercase single/two-word tags, and bias `galleryTopic` toward the fixed list — only "Other" when nothing fits
+- [ ] Improve the user message: include `text` content for quote artifacts, and label which signal is strongest (URL path vs. OG title vs. image)
+- [ ] Decide + implement text-only enrichment: either (a) run a lighter enrichment (tags + topic + embedding, keep user's text as-is) so quotes get auto-filed and become searchable, or (b) explicitly document that quotes are intentionally not enriched. *Recommend (a)* — embeddings are what power vector search; unembedded quotes never surface in search.
+- [ ] Keep the existing `try/catch` → `status:"failed"` fallback and the rate-limit gate
+- [ ] Verify: saving a URL yields a specific title + 2–5 clean tags + a sensible auto-gallery; (if (a)) saving a quote produces tags and appears in search
+
+### 3. Add media from device (Add modal)
+**Files:** `src/app/(app)/(modal)/add.tsx`, `convex/files.ts` (reuse existing upload), `convex/artifacts.ts`
+
+`expo-image-picker` + `expo-media-library` are already installed and used by profile/onboarding — reuse that upload path.
+
+- [ ] Add a "Choose photo or video" button (and optional camera) above/below the URL field; use `ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images','videos'] })`
+- [ ] Upload the picked asset to Convex file storage (reuse the avatar upload flow in `profile.tsx` / `convex/files.ts` — `generateUploadUrl` → POST → store URL)
+- [ ] Show a local preview before save (reuse the existing preview block)
+- [ ] On save: call `createArtifact` with `image` (photo) or `videoUrl` (video); these are media artifacts, so **no AI enrichment** is scheduled (matches current text-only behavior) — confirm `createArtifact`'s `willEnrich` logic still skips them (it only enriches when `sourceUrl` is set)
+- [ ] Audit `app.json` for `NSPhotoLibraryUsageDescription` / `NSCameraUsageDescription` purpose strings (ties into App Store prep below)
+- [ ] Verify: pick image → preview → save → appears in Discover grid; pick video → inline video card plays
+
+### 4. Error handling & toasts (was Day 11–12)
+**Files:** `src/app/_layout.tsx`, new `src/lib/toast.ts`, affected modals
+
+- [ ] Add a lightweight toast (Reanimated-based or `react-native-toast-message`); mount in root `_layout.tsx`
+- [ ] Success toasts: save artifact, create/update/delete gallery, delete artifact, update profile, delete account
+- [ ] Error toasts for caught mutation failures (replace ad-hoc inline `error` state where it makes sense)
+- [ ] Wrap root layout body in an error boundary (`react-error-boundary`)
+- [ ] In-flight disable on destructive buttons to prevent double-tap (delete-account already does this)
+
+### 5. App Store prep (was Day 13–14)
+**Files:** `app.json`, `eas.json`, `PrivacyInfo.xcprivacy`
+
+- [ ] `eas.json`: add `"distribution": "store"` to production build; fill `submit.production` with Apple credentials
+- [ ] Verify bundle ID, version `1.0.0`, build number, display name in `app.json`
+- [ ] Audit permission purpose strings — camera, photo library (needed for feature #3), network
+- [ ] Add `PrivacyInfo.xcprivacy` (UserDefaults, file timestamps, system boot time — iOS 17+ required reasons)
+- [ ] App Store Connect: description, keywords, support URL, age rating (4+), privacy policy URL
+- [ ] 6.7" + 6.1" screenshots (≥3 each); TestFlight build → invite ≥2 testers → fix crashes before public submit
 
 ---
 
@@ -126,11 +191,31 @@ Target: **iOS App Store public launch** · Timeline: **2 weeks** · Scale: **1k+
 - [ ] Wire artifact detail delete menu item to existing `deleteArtifact` mutation with confirmation alert
 - [ ] Fix create-gallery form: replace "Heyyyy" placeholder with real `FieldError` message from Zod
 
+#### Day 8–10 · Settings screen
+**File:** `src/app/(app)/(tabs)/(settings)/index.tsx`, `convex/user.ts`
+
+- [ ] Fix hardcoded `@ibrahimnajjar` — read `session?.user.name` or a `username` field from Convex user record
+- [ ] Wire "Account settings" `onPress` to a profile edit modal (display name, avatar — already built at `(settings)/profile`)
+- [ ] Add a **Legal** section with two items: "Privacy Policy" and "Terms of Service" (open in `WebBrowser.openBrowserAsync`)
+- [ ] Add a **Danger** section with "Delete account" — calls a `deleteAccount` mutation that removes the user's artifacts, galleries, galleryArtifacts rows, and the user record, then signs out
+- [ ] Add `deleteAccount` mutation to `convex/user.ts` with ownership guard; cascade-delete all user data
+
 #### Day 10 · Auto-gallery visual badge
 **Files:** `src/components/gallery-card.tsx`, `src/app/(app)/(tabs)/(galleries)/gallery/[galleryId].tsx`
 
 - [ ] `GalleryCard`: when `gallery.isAuto === true`, overlay a small sparkle (✦ or SF Symbol `sparkles`) badge on the card
 - [ ] Gallery detail header: add "Auto-generated" subtitle line when `isAuto === true`
+
+#### Day 10–11 · Sort & Filter (Discover)
+**Files:** `convex/artifacts.ts`, `src/app/(app)/(tabs)/(discover)/index.tsx`
+
+- [ ] Extend `listArtifacts` args: `sortDir?: "desc" | "asc"`, `filterTypes?: ("image" | "video" | "quote" | "link")[]` (multi-select)
+- [ ] Apply `.order(sortDir ?? "desc")` on the existing `by_user` index (date sort, no new index)
+- [ ] Apply `.filter(...)` before `.paginate(...)`: OR the per-type predicates of the selected types — image → image set; video → videoUrl set; quote → text set AND image unset; link → source set
+- [ ] Lift `sortDir` + `filterTypes` state into `HomeScreen` (with `toggleFilter`/`clearFilters`); pass `filterTypes: filterTypes.length ? filterTypes : undefined`
+- [ ] Rewire the toolbar menu: Sort = Newest / Oldest (`isOn`); Filter = multi-select toggles (Images / Videos / Quotes / Links); a destructive "Remove filters" action shown (`hidden={!hasFilters}`) only when filters are active
+- [ ] Make the ellipsis prominent when filtering: `variant={hasFilters ? "prominent" : "plain"}` + accent `tintColor` + filled icon
+- [ ] Sort/filter affect the browse list only; when `isSearch`, leave vector-search results untouched
 
 #### Day 11–12 · Error handling & feedback
 **Files:** `src/app/_layout.tsx`, new `src/lib/toast.ts`, affected modals
@@ -185,6 +270,34 @@ Gallery detail header:
   → else: subtitle = null (no change)
 ```
 
+### Sort & Filter (Discover)
+Make the existing Discover toolbar menu functional.
+
+```
+Backend (convex/artifacts.ts → listArtifacts):
+  args += sortDir?: "desc"|"asc", filterTypes?: ("image"|"video"|"quote"|"link")[]
+  ctx.db.query("artificats")
+    .withIndex("by_user", q => q.eq("userId", user._id))
+    .order(sortDir ?? "desc")
+    .filter(q => q.or(...selectedTypePredicates))   // omitted when filterTypes empty
+    .paginate(paginationOpts)
+
+  type predicates:
+    image → q.neq(field("image"), undefined)
+    video → q.neq(field("videoUrl"), undefined)
+    quote → q.and(q.neq(field("text"), undefined), q.eq(field("image"), undefined))
+    link  → q.neq(field("source"), undefined)
+
+UI (discover/index.tsx):
+  lift {sortDir, filterTypes} to HomeScreen → query args (toggleFilter / clearFilters)
+  Sort By: Newest (default) · Oldest
+  Filter: Images · Videos · Quotes · Links   (multi-select, isOn reflects state)
+          + "Remove filters" (destructive, hidden unless any selected)
+  Ellipsis button: variant "prominent" + accent tint when filters active
+```
+
+> Note: `.filter()` over a paginated query can return <24 items per page; `usePaginatedQuery`/`loadMore` handles this. If type-filtering feels slow at scale, add a `type` field + `by_user_type` index (out of scope for v1).
+
 ---
 
 ## Env Vars Required
@@ -231,6 +344,8 @@ EXPO_PUBLIC_CONVEX_SITE_URL=https://...convex.site
 - [ ] **Artifact delete**: Delete artifact → gone from home grid and from all galleries
 - [ ] **Duplicate detection**: Save URL → try saving same URL → warning appears
 - [ ] **Auto-gallery badge**: Save URL → AI enrichment runs → resulting auto-gallery shows sparkle badge
+- [ ] **Sort & Filter**: Discover "Oldest" reverses order; selecting "Images" + "Videos" shows both types (multi-select); ellipsis turns prominent + "Remove filters" appears when active; clearing restores all; controls don't affect active search results
+- [ ] **Settings**: Username shows real value; Privacy Policy link opens; Delete account removes all data and signs out
 - [ ] **Toasts**: Save artifact, create gallery, delete both → success toast appears each time
 - [ ] **Biome**: `npx biome check .` exits 0
 - [ ] **EAS build**: `eas build --platform ios --profile production` completes without errors

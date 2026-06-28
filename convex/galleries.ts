@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
-import { Doc } from "./_generated/dataModel";
+import type { Doc } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 
 export const createGallery = mutation({
@@ -18,15 +18,17 @@ export const createGallery = mutation({
 
 export const getGalleryById = query({
 	args: { galleryId: v.id("gallery") },
-	handler: async (ctx, { galleryId }) => {
-		return await ctx.db.get(galleryId);
-	},
-});
+	handler: async (ctx, { galleryId }): Promise<Doc<"gallery"> | null> => {
+		const user = await ctx.runQuery(api.auth.getCurrentUser);
+		if (!user) throw new Error("Must be logged in");
 
-export const listGalleries = query({
-	args: {},
-	handler: async (ctx) => {
-		return await ctx.db.query("gallery").collect();
+		// Reactive subscription: a deleted/unowned gallery resolves to null
+		// (handled by the screen) rather than throwing.
+		const gallery = await ctx.db.get(galleryId);
+		if (!gallery || gallery.userId !== user._id) {
+			return null;
+		}
+		return gallery;
 	},
 });
 
@@ -35,10 +37,85 @@ export const listUserGalleries = query({
 	handler: async (ctx): Promise<Doc<"gallery">[]> => {
 		const user = await ctx.runQuery(api.auth.getCurrentUser);
 		if (!user) throw new Error("Must be logged in");
-		return await ctx.db
+		const galleries = await ctx.db
 			.query("gallery")
 			.withIndex("by_user", (q) => q.eq("userId", user._id))
+			.take(100);
+		return galleries.filter((g) => !g.dismissed);
+	},
+});
+
+export const updateGallery = mutation({
+	args: {
+		galleryId: v.id("gallery"),
+		title: v.optional(v.string()),
+		description: v.optional(v.string()),
+	},
+	handler: async (ctx, { galleryId, title, description }) => {
+		const user = await ctx.runQuery(api.auth.getCurrentUser);
+		if (!user) throw new Error("Must be logged in");
+
+		const gallery = await ctx.db.get(galleryId);
+		if (!gallery || gallery.userId !== user._id) {
+			throw new Error("Not found");
+		}
+
+		const update: Partial<Doc<"gallery">> = {};
+		if (title !== undefined) update.title = title;
+		if (description !== undefined) update.description = description;
+		await ctx.db.patch(galleryId, update);
+	},
+});
+
+export const deleteGallery = mutation({
+	args: { galleryId: v.id("gallery") },
+	handler: async (ctx, { galleryId }) => {
+		const user = await ctx.runQuery(api.auth.getCurrentUser);
+		if (!user) throw new Error("Must be logged in");
+
+		const gallery = await ctx.db.get(galleryId);
+		if (!gallery || gallery.userId !== user._id) {
+			throw new Error("Not found");
+		}
+
+		// Cascade: remove this gallery's artifact link rows (artifacts themselves stay)
+		const links = await ctx.db
+			.query("galleryArtifacts")
+			.withIndex("by_gallery", (q) => q.eq("galleryId", galleryId))
 			.collect();
+		await Promise.all(links.map((link) => ctx.db.delete(link._id)));
+
+		await ctx.db.delete(galleryId);
+	},
+});
+
+// Convert an auto-generated gallery into a user-owned gallery
+export const promoteGallery = mutation({
+	args: { galleryId: v.id("gallery") },
+	handler: async (ctx, { galleryId }) => {
+		const user = await ctx.runQuery(api.auth.getCurrentUser);
+		if (!user) throw new Error("Must be logged in");
+
+		const gallery = await ctx.db.get(galleryId);
+		if (!gallery || gallery.userId !== user._id) {
+			throw new Error("Not found");
+		}
+		await ctx.db.patch(galleryId, { isAuto: false });
+	},
+});
+
+// Dismiss an auto-generated gallery: hide it and stop future auto-filing of its topic
+export const dismissAutoGallery = mutation({
+	args: { galleryId: v.id("gallery") },
+	handler: async (ctx, { galleryId }) => {
+		const user = await ctx.runQuery(api.auth.getCurrentUser);
+		if (!user) throw new Error("Must be logged in");
+
+		const gallery = await ctx.db.get(galleryId);
+		if (!gallery || gallery.userId !== user._id) {
+			throw new Error("Not found");
+		}
+		await ctx.db.patch(galleryId, { dismissed: true });
 	},
 });
 
@@ -59,6 +136,9 @@ export const findOrCreateAutoGallery = internalMutation({
 		let gallery = galleries.find(
 			(g) => g.isAuto && g.title.toLowerCase() === topic.toLowerCase(),
 		);
+
+		// User dismissed this topic — don't auto-file or recreate the gallery
+		if (gallery?.dismissed) return;
 
 		if (!gallery) {
 			const galleryId = await ctx.db.insert("gallery", {

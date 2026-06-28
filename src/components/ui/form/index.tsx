@@ -2,6 +2,7 @@ import {
 	MaterialDesignIcons,
 	type MaterialDesignIconsIconName,
 } from "@react-native-vector-icons/material-design-icons";
+import { SFSymbol, SymbolView } from "expo-symbols";
 import {
 	ListGroup as HerouiListGroup,
 	type ListGroupItemProps as HerouiListGroupItemProps,
@@ -26,9 +27,10 @@ type ListGroupItemProps = {
 	children?: React.ReactNode;
 	label?: string;
 	description?: string;
-	iconName?: MaterialDesignIconsIconName;
+	iconName?: SFSymbol;
 	customContent?: React.ReactNode;
 	hidePrefix?: boolean;
+	hideSuffix?: boolean;
 } & HerouiListGroupItemProps;
 
 const ListGroupItem: React.FC<ListGroupItemProps> = ({
@@ -37,10 +39,13 @@ const ListGroupItem: React.FC<ListGroupItemProps> = ({
 	description,
 	iconName,
 	hidePrefix = false,
+	hideSuffix = false,
 	customContent,
 	onPress,
 	...props
 }) => {
+	const foreground = useThemeColor("foreground");
+
 	return (
 		<PressableFeedback animation={false} onPress={onPress}>
 			<PressableFeedback.Ripple />
@@ -49,7 +54,7 @@ const ListGroupItem: React.FC<ListGroupItemProps> = ({
 					{!hidePrefix && (
 						<HerouiListGroup.ItemPrefix>
 							{iconName && (
-								<StyledMaterialDesignIcons name={iconName} size={24} />
+								<SymbolView name={iconName} size={24} tintColor={foreground} />
 							)}
 						</HerouiListGroup.ItemPrefix>
 					)}
@@ -65,7 +70,9 @@ const ListGroupItem: React.FC<ListGroupItemProps> = ({
 							)}
 						</HerouiListGroup.ItemContent>
 					)}
-					<HerouiListGroup.ItemSuffix>{children}</HerouiListGroup.ItemSuffix>
+					{hideSuffix ? null : (
+						<HerouiListGroup.ItemSuffix>{children}</HerouiListGroup.ItemSuffix>
+					)}
 				</HerouiListGroup.Item>
 			</PressableFeedback.Scale>
 		</PressableFeedback>

@@ -166,7 +166,8 @@ async function scrapeHtml(url: string): Promise<{
 			},
 		});
 
-		if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+		if (!response.ok)
+			throw new Error(`Request failed with status ${response.status}`);
 		if (!response.body) throw new Error("Empty response body");
 
 		// Stream and stop at </head> to avoid downloading the whole page

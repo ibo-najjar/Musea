@@ -1,72 +1,99 @@
-import { FlashList } from "@shopify/flash-list";
-import { Stack, useLocalSearchParams } from "expo-router";
-import { useHeaderHeight } from "expo-router/build/react-navigation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery } from "convex/react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
-	Avatar,
+	cn,
 	Description,
+	FieldError,
 	Input,
 	Label,
-	PressableFeedback,
 	TextField,
 } from "heroui-native";
-import { View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import MasonryCard from "@/components/mansory-card";
+import { useEffect } from "react";
+import { Controller, useForm } from "react-hook-form";
+import z from "zod";
+import ModalCloseButton from "@/components/layout/modal-close-button";
+import ModalSubmitButton from "@/components/layout/modal-submit-button";
 import ScrollView from "@/components/ui/scrollview";
-import { Text } from "@/components/ui/text";
-import { BOARDS } from "@/constants/dummy-data";
+import { api } from "~/convex/_generated/api";
+import type { Id } from "~/convex/_generated/dataModel";
+
+const editGallerySchema = z.object({
+	name: z.string().min(1, "Name is required").max(100, "Name is too long"),
+});
+
+type EditGalleryForm = z.infer<typeof editGallerySchema>;
 
 export default function EditGalleryScreen() {
-	const { boardId } = useLocalSearchParams<{
-		boardId: string;
-	}>();
+	const { galleryId } = useLocalSearchParams<{ galleryId: string }>();
+	const router = useRouter();
 
-	const board = BOARDS.find((b) => b.id === boardId);
+	const gallery = useQuery(api.galleries.getGalleryById, {
+		galleryId: galleryId as Id<"gallery">,
+	});
+	const updateGallery = useMutation(api.galleries.updateGallery);
 
-	const { top } = useSafeAreaInsets();
+	const {
+		control,
+		handleSubmit,
+		reset,
+		formState: { errors, isSubmitting },
+	} = useForm<EditGalleryForm>({
+		resolver: zodResolver(editGallerySchema),
+		defaultValues: { name: "" },
+	});
 
-	const headerHeight = useHeaderHeight();
+	// Seed the form once the gallery loads
+	useEffect(() => {
+		if (gallery) reset({ name: gallery.title });
+	}, [gallery, reset]);
 
-	if (!board) {
-		return null;
-	}
+	const onSubmit = async (data: EditGalleryForm) => {
+		await updateGallery({
+			galleryId: galleryId as Id<"gallery">,
+			title: data.name,
+		});
+		router.back();
+	};
 
 	return (
 		<>
-			<Stack.Screen options={{ title: board.name }} />
+			<Stack.Screen options={{ title: gallery?.title ?? "Edit Gallery" }} />
+			<ModalSubmitButton
+				disabled={isSubmitting || gallery === undefined}
+				onClick={handleSubmit(onSubmit)}
+				isLoading={isSubmitting}
+			/>
+			<ModalCloseButton />
 			<ScrollView
 				className="bg-transparent"
-				contentContainerClassName="px-4 pt-4"
-				style={{ paddingTop: headerHeight }}
-				showsVerticalScrollIndicator={false}
+				contentInsetAdjustmentBehavior="automatic"
+				contentContainerClassName="px-4 gap-4 mb-20"
 			>
-				<PressableFeedback className="mx-auto">
-					<PressableFeedback.Scale />
-					<Avatar className="rounded-2xl size-44" variant="soft">
-						<Avatar.Image />
-						<Avatar.Fallback>{board.name}</Avatar.Fallback>
-					</Avatar>
-				</PressableFeedback>
-				<TextField className="mt-4">
+				<TextField>
 					<Label>Gallery name</Label>
-					<Input
-						defaultValue={board.name}
-						placeholder="Enter gallery name"
-						className="shadow-none"
+					<Controller
+						control={control}
+						name="name"
+						render={({ field: { onChange, value } }) => (
+							<Input
+								value={value}
+								onChangeText={onChange}
+								placeholder="Enter gallery name"
+								className="shadow-none"
+							/>
+						)}
 					/>
-				</TextField>
-				<TextField className="mt-4">
-					<Label>Gallery Prompt</Label>
-					<Input
-						// defaultValue={board.name}
-						placeholder="A prompt to describe your gallery"
-						className="shadow-none"
-						variant="primary"
-					/>
-					<Description>
-						This prompt will be used to generate images for your gallery. Make
-						sure to be descriptive and specific.
+					<Description
+						className={cn({
+							invisible: !!errors.name,
+						})}
+					>
+						This name helps us auto-sort items for you. You can change it later.
 					</Description>
+					<FieldError isInvalid={!!errors.name}>
+						{errors.name?.message}
+					</FieldError>
 				</TextField>
 			</ScrollView>
 		</>

@@ -28,6 +28,24 @@ export default function SettingsLayout() {
 					title: "Profile",
 				}}
 			/>
+			<Stack.Screen
+				name="privacy-policy"
+				options={{
+					presentation: "formSheet",
+					sheetAllowedDetents: [1],
+					sheetGrabberVisible: true,
+					title: "Privacy Policy",
+				}}
+			/>
+			<Stack.Screen
+				name="terms"
+				options={{
+					presentation: "formSheet",
+					sheetAllowedDetents: [1],
+					sheetGrabberVisible: true,
+					title: "Terms of Service",
+				}}
+			/>
 		</Stack>
 	);
 }

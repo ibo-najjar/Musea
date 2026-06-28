@@ -2,8 +2,9 @@ import { expo } from "@better-auth/expo";
 import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { convex } from "@convex-dev/better-auth/plugins";
 import { type BetterAuthOptions, betterAuth } from "better-auth/minimal";
+import { username } from "better-auth/plugins";
 import { components } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
+import type { DataModel } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import authConfig from "./auth.config";
 
@@ -13,12 +14,40 @@ export const authComponent = createClient<DataModel>(components.betterAuth);
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
 	return betterAuth({
+		baseURL: process.env.CONVEX_SITE_URL as string,
 		trustedOrigins: ["starterai://", "musea://"],
 		database: authComponent.adapter(ctx),
+		user: {
+			deleteUser: { enabled: true },
+		},
 		// Configure simple, non-verified email/password to get started
 		emailAndPassword: {
 			enabled: true,
 			requireEmailVerification: false,
+		},
+		databaseHooks: {
+			user: {
+				create: {
+					// Auto-generate a username for users who don't supply one (e.g. OAuth).
+					before: async (user) => {
+						if ((user as { username?: string }).username) return;
+						const base =
+							(user.name || user.email?.split("@")[0] || "user")
+								.toLowerCase()
+								.replace(/[^a-z0-9]/g, "")
+								.slice(0, 20) || "user";
+						const suffix = Math.random().toString(36).slice(2, 7);
+						const displayUsername = `${base}${suffix}`;
+						return {
+							data: {
+								...user,
+								username: displayUsername,
+								displayUsername,
+							},
+						};
+					},
+				},
+			},
 		},
 		socialProviders: {
 			google: {
@@ -36,6 +65,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 			// The Expo and Convex plugins are required
 			expo(),
 			convex({ authConfig }),
+			username(),
 		],
 	});
 };

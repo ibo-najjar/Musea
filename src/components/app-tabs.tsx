@@ -18,17 +18,13 @@ export default function AppTabs() {
 
 	const router = useRouter();
 
-	useEffect(() => {
-		// "add" is the 4th tab (index 3); intercept it natively before any visual change
-		setInterceptedTabIndex(3);
-		const subscription = addInterceptedTabPressListener(() => {
-			router.push("/(app)/(modal)/add");
-		});
-		return () => subscription.remove();
-	}, [router]);
-
 	return (
 		<NativeTabs
+			unstable_nativeProps={{
+				onTabSelectionPrevented: (event) => {
+					router.push("/(app)/(modal)/add");
+				},
+			}}
 			minimizeBehavior="onScrollDown"
 			backgroundColor={background}
 			indicatorColor={ripple}
@@ -39,7 +35,7 @@ export default function AppTabs() {
 			}}
 			labelStyle={{ selected: { color: accent } }}
 		>
-			<NativeTabs.Trigger name="index">
+			<NativeTabs.Trigger name="(discover)">
 				<NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>
 				<NativeTabs.Trigger.Icon
 					src={require("@/assets/images/tabIcons/icon.png")}
@@ -60,7 +56,7 @@ export default function AppTabs() {
 					renderingMode="template"
 				/>
 			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name="add" role="search">
+			<NativeTabs.Trigger name="add" role="search" disabled>
 				<NativeTabs.Trigger.Label hidden>Add</NativeTabs.Trigger.Label>
 				<NativeTabs.Trigger.Icon sf={"plus"} renderingMode="template" />
 			</NativeTabs.Trigger>

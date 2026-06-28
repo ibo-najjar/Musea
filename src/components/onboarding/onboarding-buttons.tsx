@@ -71,7 +71,7 @@ export function OnboardingButtons({
 							),
 						});
 					},
-					onSuccess: () => router.replace("/(app)/(tabs)"),
+					onSuccess: () => router.replace("/(app)/(tabs)/(discover)"),
 				},
 			);
 		} catch (e: any) {
@@ -83,7 +83,7 @@ export function OnboardingButtons({
 		try {
 			setGoogleLoading(true);
 			await authClient.signIn.social(
-				{ provider: "google", callbackURL: "musea://(app)/(tabs)/(index)" },
+				{ provider: "google", callbackURL: "musea://(app)/(tabs)/(discover)" },
 				{
 					onError: (error) => {
 						toast.show({
@@ -100,7 +100,7 @@ export function OnboardingButtons({
 							description: error instanceof Error ? error.message : undefined,
 						});
 					},
-					onSuccess: () => router.replace("/(app)/(tabs)"),
+					onSuccess: () => router.replace("/(app)/(tabs)/(discover)"),
 				},
 			);
 		} catch (e: any) {

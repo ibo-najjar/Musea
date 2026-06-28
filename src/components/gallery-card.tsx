@@ -1,9 +1,11 @@
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Link } from "expo-router";
-import { cn } from "heroui-native";
+import { SymbolView } from "expo-symbols";
+import { cn, Skeleton, useThemeColor } from "heroui-native";
 import { Pressable, View } from "react-native";
 import { api } from "~/convex/_generated/api";
-import { Doc } from "~/convex/_generated/dataModel";
+import type { Doc } from "~/convex/_generated/dataModel";
+import { GlassView } from "./ui/apple-glass-view";
 import Image from "./ui/image";
 import { Text } from "./ui/text";
 
@@ -21,7 +23,7 @@ export const GalleryPreview = ({
 	return (
 		<View
 			className={cn(
-				"w-full aspect-square rounded-2xl overflow-hidden bg-transparent",
+				"aspect-square w-full overflow-hidden rounded-2xl bg-surface-secondary",
 				className,
 			)}
 		>
@@ -55,14 +57,14 @@ export const GalleryPreview = ({
 
 			{count >= 3 && (
 				<View className={cn("flex-1 flex-row", gapClassName)}>
-					<View className="flex-1 h-full">
+					<View className="h-full flex-1">
 						<Image
 							source={{ uri: images[0] }}
 							contentFit="cover"
 							style={{ flex: 1 }}
 						/>
 					</View>
-					<View className={cn("flex-1 h-full", gapClassName)}>
+					<View className={cn("h-full flex-1", gapClassName)}>
 						<View className="flex-1">
 							<Image
 								source={{ uri: images[1] }}
@@ -94,6 +96,14 @@ export function GalleryCard({ gallery }: { gallery: Doc<"gallery"> }) {
 		.filter((url): url is string => Boolean(url));
 	const count = preview?.length ?? 0;
 
+	const totalCount = useQuery(api.galleryArtifacts.countArtifactsInGallery, {
+		galleryId: gallery._id,
+	});
+
+	const accent = useThemeColor("accent");
+	const promoteGallery = useMutation(api.galleries.promoteGallery);
+	const dismissAutoGallery = useMutation(api.galleries.dismissAutoGallery);
+
 	return (
 		<Link
 			href={{
@@ -102,16 +112,75 @@ export function GalleryCard({ gallery }: { gallery: Doc<"gallery"> }) {
 			}}
 			asChild
 		>
-			<Pressable className="flex-1 m-2">
-				<GalleryPreview count={count} images={images} />
+			<Link.Trigger>
+				<Pressable className="m-2 flex-1">
+					<View className="relative">
+						<Skeleton
+							isLoading={preview === undefined}
+							className="aspect-square w-full rounded-2xl"
+						>
+							<GalleryPreview count={count} images={images} />
+						</Skeleton>
+						{gallery.isAuto && (
+							<GlassView className="absolute top-2 right-2 h-7 w-7 items-center justify-center rounded-full">
+								<SymbolView name="sparkles" size={16} tintColor={accent} />
+							</GlassView>
+						)}
+					</View>
+					<Text className="mt-2 ml-0.5 font-semibold text-foreground text-sm">
+						{gallery.title}
+					</Text>
+					<Skeleton
+						isLoading={totalCount === undefined}
+						className="mt-1 h-3 w-12 rounded-lg"
+					>
+						<Text className="ml-0.5 text-muted text-xs">
+							{totalCount} {totalCount === 1 ? "save" : "saves"}
+						</Text>
+					</Skeleton>
+				</Pressable>
+			</Link.Trigger>
+			<Link.Preview
+				style={{
+					width: 300,
+					height: 300,
+				}}
+			>
+				<Skeleton
+					isLoading={preview === undefined}
+					className="aspect-square w-full rounded-2xl"
+				>
+					<GalleryPreview count={count} images={images} />
+				</Skeleton>
+			</Link.Preview>
+			<Link.Menu>
+				<Link.MenuAction
+					icon="sparkles"
+					onPress={() => promoteGallery({ galleryId: gallery._id })}
+					hidden={!gallery.isAuto}
+				>
+					Add to my galleries
+				</Link.MenuAction>
+				<Link.MenuAction
+					icon="xmark"
+					destructive
+					hidden={!gallery.isAuto}
+					onPress={() => dismissAutoGallery({ galleryId: gallery._id })}
+				>
+					Dismiss
+				</Link.MenuAction>
 
-				<Text className="text-foreground font-semibold text-sm mt-2 ml-0.5">
-					{gallery.title}
-				</Text>
-				<Text className="text-muted-foreground text-xs ml-0.5">
-					{count} {count === 1 ? "save" : "saves"}
-				</Text>
-			</Pressable>
+				<Link.MenuAction icon="pencil" hidden={gallery.isAuto === true}>
+					Edit Gallery
+				</Link.MenuAction>
+				<Link.MenuAction
+					icon="rectangle.stack.fill.badge.minus"
+					destructive
+					hidden={gallery.isAuto === true}
+				>
+					Delete Gallery
+				</Link.MenuAction>
+			</Link.Menu>
 		</Link>
 	);
 }

@@ -11,6 +11,7 @@
 import type * as ai from "../ai.js";
 import type * as artifacts from "../artifacts.js";
 import type * as auth from "../auth.js";
+import type * as feedback from "../feedback.js";
 import type * as files from "../files.js";
 import type * as galleries from "../galleries.js";
 import type * as galleryArtifacts from "../galleryArtifacts.js";
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   artifacts: typeof artifacts;
   auth: typeof auth;
+  feedback: typeof feedback;
   files: typeof files;
   galleries: typeof galleries;
   galleryArtifacts: typeof galleryArtifacts;
@@ -68,4 +70,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };

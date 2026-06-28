@@ -1,6 +1,6 @@
 import { Link, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { Spinner, Typography } from "heroui-native";
+import { Checkbox, Spinner, Typography } from "heroui-native";
 import { useState } from "react";
 import { Pressable, useWindowDimensions, View } from "react-native";
 import { Doc } from "~/convex/_generated/dataModel";
@@ -28,9 +28,17 @@ const TEXT_SIZE_LINES = {
 const MasonryCard = ({
 	item,
 	onDeleteArtifact,
+	isSelecting,
+	isSelected,
+	onToggle,
+	onRemoveFromGallery,
 }: {
 	item: Doc<"artificats">;
 	onDeleteArtifact?: (id: string) => void;
+	isSelecting?: boolean;
+	isSelected?: boolean;
+	onToggle?: (id: string) => void;
+	onRemoveFromGallery?: (id: string) => void;
 }) => {
 	const { width: screenWidth } = useWindowDimensions();
 	const columnWidth = screenWidth / NUM_COLUMNS - ITEM_MARGIN * 2;
@@ -124,10 +132,18 @@ const MasonryCard = ({
 					>
 						Add to Gallery
 					</Link.MenuAction>
-					<Link.MenuAction icon="heart">Add to Favorite</Link.MenuAction>
+					{onRemoveFromGallery && (
+						<Link.MenuAction
+							icon="rectangle.stack.badge.minus"
+							destructive
+							onPress={() => onRemoveFromGallery(item._id)}
+						>
+							Remove from Gallery
+						</Link.MenuAction>
+					)}
 					{onDeleteArtifact && (
 						<Link.MenuAction
-							icon="xmark.square"
+							icon="trash"
 							destructive
 							onPress={() => onDeleteArtifact(item._id)}
 						>
@@ -136,6 +152,21 @@ const MasonryCard = ({
 					)}
 				</Link.Menu>
 			</Link>
+			{isSelecting && (
+				<Pressable
+					className="absolute inset-0"
+					onPress={() => onToggle?.(item._id)}
+				>
+					{isSelected && <View className="absolute inset-0 bg-black/30" />}
+					<View className="absolute top-2 right-2">
+						<Checkbox
+							isSelected={isSelected}
+							className="bg-foreground/30"
+							onPress={() => onToggle?.(item._id)}
+						/>
+					</View>
+				</Pressable>
+			)}
 		</View>
 	);
 };

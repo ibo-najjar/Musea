@@ -22,8 +22,22 @@ export default defineSchema({
 			v.union(v.literal("pending"), v.literal("ready"), v.literal("failed")),
 		),
 		embedding: v.optional(v.array(v.float64())),
-		textSize: v.optional(v.union(v.literal("sm"), v.literal("md"), v.literal("lg"), v.literal("xl"))),
-		textWeight: v.optional(v.union(v.literal("normal"), v.literal("medium"), v.literal("semibold"), v.literal("bold"))),
+		textSize: v.optional(
+			v.union(
+				v.literal("sm"),
+				v.literal("md"),
+				v.literal("lg"),
+				v.literal("xl"),
+			),
+		),
+		textWeight: v.optional(
+			v.union(
+				v.literal("normal"),
+				v.literal("medium"),
+				v.literal("semibold"),
+				v.literal("bold"),
+			),
+		),
 	})
 		.index("by_user", ["userId"])
 		.vectorIndex("by_embedding", {
@@ -32,10 +46,16 @@ export default defineSchema({
 			filterFields: ["userId"],
 		}),
 
+	userFeedback: defineTable({
+		userId: v.string(),
+		message: v.string(),
+	}).index("by_user", ["userId"]),
+
 	gallery: defineTable({
 		title: v.string(),
 		description: v.optional(v.string()),
 		isAuto: v.optional(v.boolean()),
+		dismissed: v.optional(v.boolean()),
 		userId: v.string(),
 	}).index("by_user", ["userId"]),
 

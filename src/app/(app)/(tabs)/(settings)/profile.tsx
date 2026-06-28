@@ -4,7 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { SymbolView } from "expo-symbols";
 import { Avatar, InputGroup, ListGroup, useThemeColor } from "heroui-native";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { Alert, View } from "react-native";
 import ModalSubmitButton from "@/components/layout/modal-submit-button";
 import { Button } from "@/components/ui/button";
 import ScrollView from "@/components/ui/scrollview";
@@ -17,11 +17,13 @@ export default function Profile() {
 	const [isUploading, setIsUploading] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
 	const [displayName, setDisplayName] = useState(session?.user.name ?? "");
+	const [username, setUsername] = useState(session?.user.username ?? "");
 	const foreground = useThemeColor("foreground");
 	const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 	const saveFile = useMutation(api.files.saveFile);
 	const updateProfileImage = useMutation(api.user.updateProfileImage);
 	const updateProfile = useMutation(api.user.updateProfileName); // adjust to your actual mutation name
+	const updateUsername = useMutation(api.user.updateUsername);
 
 	// Keep local state in sync if session data loads/refetches after mount
 	useEffect(() => {
@@ -30,9 +32,20 @@ export default function Profile() {
 		}
 	}, [session?.user.name]);
 
+	useEffect(() => {
+		if (session?.user.username !== undefined) {
+			setUsername(session.user.username ?? "");
+		}
+	}, [session?.user.username]);
+
 	const trimmedName = displayName.trim();
 	const hasNameChanged =
 		trimmedName.length > 0 && trimmedName !== (session?.user.name ?? "");
+	const trimmedUsername = username.trim();
+	const hasUsernameChanged =
+		trimmedUsername.length > 0 &&
+		trimmedUsername !== (session?.user.username ?? "");
+	const hasChanges = hasNameChanged || hasUsernameChanged;
 
 	const handleEditImage = async () => {
 		try {
@@ -65,14 +78,18 @@ export default function Profile() {
 		}
 	};
 
-	const handleSubmitName = async () => {
-		if (!hasNameChanged) return;
+	const handleSubmit = async () => {
+		if (!hasChanges) return;
 		try {
 			setIsSaving(true);
-			await updateProfile({ name: trimmedName });
+			if (hasNameChanged) await updateProfile({ name: trimmedName });
+			if (hasUsernameChanged) await updateUsername({ username: trimmedUsername });
 			await refetch();
 		} catch (error) {
-			console.error("Error updating name:", error);
+			Alert.alert(
+				"Couldn't save profile",
+				error instanceof Error ? error.message : "Please try again.",
+			);
 		} finally {
 			setIsSaving(false);
 		}
@@ -81,9 +98,9 @@ export default function Profile() {
 	return (
 		<>
 			<ModalSubmitButton
-				onClick={handleSubmitName}
+				onClick={handleSubmit}
 				isLoading={isSaving}
-				disabled={!hasNameChanged}
+				disabled={!hasChanges}
 			/>
 			<ScrollView
 				contentInsetAdjustmentBehavior="automatic"
@@ -140,6 +157,22 @@ export default function Profile() {
 								className="bg-transparent outline-0 border-0"
 								value={displayName}
 								onChangeText={setDisplayName}
+							/>
+						</InputGroup>
+					</ListGroup.Item>
+					<ListGroup.Item className="p-0">
+						<InputGroup className="w-full">
+							<InputGroup.Prefix>
+								<SymbolView name="at" size={16} tintColor={foreground} />
+							</InputGroup.Prefix>
+							<InputGroup.Input
+								placeholder="username"
+								variant="secondary"
+								className="bg-transparent outline-0 border-0"
+								autoCapitalize="none"
+								autoCorrect={false}
+								value={username}
+								onChangeText={setUsername}
 							/>
 						</InputGroup>
 					</ListGroup.Item>

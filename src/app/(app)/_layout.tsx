@@ -3,6 +3,11 @@ import { useThemeColor } from "heroui-native";
 import { View } from "react-native";
 import { Button } from "@/components/ui/button";
 
+export const unstable_settings = {
+	// Ensure any route can link back to `/`
+	initialRouteName: "(tabs)/(discover)",
+};
+
 export default function TabLayout() {
 	const foreground = useThemeColor("foreground");
 
@@ -107,6 +112,16 @@ export default function TabLayout() {
 					// 		</Button>
 					// 	</View>
 					// ),
+				}}
+			/>
+			<Stack.Screen
+				name="(modal)/feedback"
+				options={{
+					headerShown: true,
+					presentation: "formSheet",
+					sheetAllowedDetents: [1],
+					title: "",
+					sheetGrabberVisible: true,
 				}}
 			/>
 		</Stack>
