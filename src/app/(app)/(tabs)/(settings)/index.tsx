@@ -1,3 +1,4 @@
+import * as Application from "expo-application";
 import { useRouter } from "expo-router";
 import { Avatar } from "heroui-native";
 import { Text, View } from "react-native";
@@ -10,6 +11,9 @@ export default function ListGroupExample() {
 	const router = useRouter();
 
 	const { data: session } = authClient.useSession();
+
+	const version = Application.nativeApplicationVersion ?? "0.0.1";
+	const build = Application.nativeBuildVersion ?? "—";
 
 	return (
 		<ScrollView contentContainerClassName="px-4" className="flex-1">
@@ -64,6 +68,11 @@ export default function ListGroupExample() {
 					}}
 				/>
 			</ListGroup>
+			<View className="mt-8 mb-4 items-center">
+				<Text className="text-muted text-xs">
+					{`Version ${version} (${build})`}
+				</Text>
+			</View>
 		</ScrollView>
 	);
 }
