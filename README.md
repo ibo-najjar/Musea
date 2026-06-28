@@ -41,6 +41,31 @@ This command will move the starter code to the **app-example** directory and cre
 - If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
 - Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
 
+## Versioning
+
+This app uses EAS Build with the **remote** app version source
+(`cli.appVersionSource: "remote"` in `eas.json`). There are two distinct values
+([Expo: App versions](https://docs.expo.dev/build-reference/app-versions/)):
+
+- **Version** (`version` in `app.config.ts`) — the user-facing version shown in
+  the stores (e.g. `1.0.0`). This is the single source of truth; bump it manually
+  when cutting a release, then commit.
+- **Build number** (`ios.buildNumber` / `android.versionCode`) — internal build
+  identifiers that must increase on every store submission. These are **tracked by
+  EAS** and bumped automatically by `autoIncrement` on the `production` build
+  profile — no manual edits, and don't hardcode them in config.
+
+Useful commands:
+
+```bash
+npx eas build:version:get            # view the EAS-tracked build number
+npx eas build:version:set            # set/seed it (e.g. to align with the stores)
+npx eas build --profile production --platform all
+```
+
+The current version + build number is shown at the bottom of the in-app Settings
+screen (read at runtime via `expo-application`).
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:
