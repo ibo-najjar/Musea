@@ -1,4 +1,5 @@
 import { useMutation } from "convex/react";
+import * as Application from "expo-application";
 import { useRouter } from "expo-router";
 import { Avatar } from "heroui-native";
 import { useState } from "react";
@@ -15,6 +16,9 @@ export default function ListGroupExample() {
 	const { data: session } = authClient.useSession();
 	const deleteAccount = useMutation(api.user.deleteAccount);
 	const [isDeleting, setIsDeleting] = useState(false);
+
+	const version = Application.nativeApplicationVersion ?? "0.0.1";
+	const build = Application.nativeBuildVersion ?? "—";
 
 	const handleDeleteAccount = () => {
 		if (isDeleting) return;
@@ -80,6 +84,11 @@ export default function ListGroupExample() {
 			<Text className="mt-4 mb-2 ml-2 text-muted text-sm">Actions</Text>
 			<ListGroup>
 				<ListGroupItem
+					iconName="generator-mobile"
+					label="Account settings"
+					onPress={() => {}}
+				/>
+				<ListGroupItem
 					iconName="bubble.left.and.bubble.right"
 					label="Feedback"
 					// description="Change your username"
@@ -119,6 +128,11 @@ export default function ListGroupExample() {
 					onPress={handleDeleteAccount}
 				/>
 			</ListGroup>
+			<View className="mt-8 mb-4 items-center">
+				<Text className="text-muted text-xs">
+					{`Version ${version} (${build})`}
+				</Text>
+			</View>
 		</ScrollView>
 	);
 }
