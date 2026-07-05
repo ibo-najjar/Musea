@@ -385,6 +385,117 @@ UI (discover/index.tsx):
 
 ---
 
+## New Feature: Smart Auto-Organization v2
+
+Replace the fixed-topic auto-filing with embedding-based filing into the user's own galleries, plus cluster-based "Suggested" galleries.
+
+### Why
+
+Musea promises *"ONE TAP. AUTO-ORGANIZED. Musea puts it in the right place."* Today it doesn't deliver. A URL is enriched by gpt-4o-mini, which picks **one** `galleryTopic` from a fixed 17-word list (`convex/ai.ts:44-48`); then `findOrCreateAutoGallery` files it into an `isAuto` gallery by **exact case-insensitive title match** (`convex/galleries.ts:123-167`). The computed embedding is used **only** for search, never for organizing. Consequences:
+
+- **The AI is invisible** — the title silently rewrites and the item silently appears in an auto-gallery; the only signal anywhere is a generic "Processing…" chip.
+- **Galleries the user creates are never auto-filled** — auto-filing only matches `isAuto:true`, so a hand-made gallery gets nothing, even though the create-gallery copy promises "this helps us auto-sort items for you."
+- **Duplicate buckets** — exact-string matching makes "Tech" vs "Technology" two galleries.
+- **1-item gallery sprawl** — the first save of a topic instantly mints a gallery.
+
+The redesign (3 product decisions):
+1. **File into *your* galleries by meaning** — match new saves to existing galleries via embedding similarity; retire the fixed topic list. Confident match → file **silently** (undoable toast). No good match → leave in library, **no prompt, zero extra taps**.
+2. **New galleries emerge from clusters, shown inline as "Suggested" galleries** in the Galleries grid (not banners/notifications) — user Approves or Dismisses in place.
+3. One unified gallery pool; the gallery you name *is* the taxonomy the AI works within.
+
+### A. Schema
+**File:** `convex/schema.ts`
+
+- [ ] `gallery` table: add `centroid: v.optional(v.array(v.float64()))` — running mean of member artifact embeddings (1536 dims)
+- [ ] `gallery` table: add `itemCount: v.optional(v.number())` — member count, for incremental centroid updates
+- [ ] `gallery` table: add `suggested: v.optional(v.boolean())` — provisional cluster gallery awaiting user Approve/Dismiss
+- [ ] `artificats` table: add `clusterDismissed: v.optional(v.boolean())` — item was in a dismissed suggestion; exclude from re-clustering
+- [ ] Keep `isAuto` (means "AI-born") and `dismissed`; **no table rename** (respect the `artificats` typo rule)
+
+### B. Enrichment: stop picking a topic bucket
+**File:** `convex/ai.ts`
+
+- [ ] Remove `galleryTopic` from `enrichSchema` (keep `title`/`summary`/`tags`); update the system prompt to drop bucket guidance
+- [ ] After the embedding is computed and the artifact patched to `ready`, replace the `findOrCreateAutoGallery` call with `internal.galleries.fileArtifactByEmbedding({ userId, artificatId, embedding })`
+- [ ] After filing, schedule `internal.galleries.maybeClusterUnsorted({ userId })` (cluster check for suggested galleries)
+
+### C. Embedding-based filing into existing galleries
+**File:** `convex/galleries.ts` (new `fileArtifactByEmbedding` internalMutation)
+
+- [ ] Load the user's galleries (`by_user`, `.take(100)`); consider only galleries with a `centroid` and `suggested !== true` and `dismissed !== true`
+- [ ] Compute cosine similarity between the artifact embedding and each gallery `centroid`; pick the best
+- [ ] If `bestSim >= MATCH_THRESHOLD` (start `0.82`, tunable): insert the `galleryArtifacts` link (dedup-guarded like today) and call the centroid updater. Else: do nothing — the item stays unsorted in the library
+- [ ] Add `updateGalleryCentroid(galleryId, addedEmbedding)` helper: `centroid = (centroid*itemCount + emb) / (itemCount+1)`, `itemCount++`. Call it wherever `galleryArtifacts` rows are added/removed (`convex/galleryArtifacts.ts` add/remove/set paths too) so manual moves keep centroids honest
+- [ ] Backfill note: existing galleries have no `centroid`; on first membership change they start accumulating. (Optional one-off: a `recomputeCentroid` internal action over current members.)
+
+```
+fileArtifactByEmbedding(userId, artificatId, emb):
+  galleries = by_user.take(100).filter(g => g.centroid && !g.suggested && !g.dismissed)
+  best = argmax_g cosine(emb, g.centroid)
+  if best && cosine(emb, best.centroid) >= MATCH_THRESHOLD:
+      link artifact→best (if not already linked)
+      updateGalleryCentroid(best, emb)
+  // else: leave unsorted → candidate for clustering
+```
+
+### D. Cluster-based Suggested galleries
+**File:** `convex/galleries.ts` (new `maybeClusterUnsorted` internalMutation/action)
+
+- [ ] Gather the user's **unsorted** artifacts: `status:"ready"`, has `embedding`, not in any `galleryArtifacts` row, and not flagged `clusterDismissed`
+- [ ] Greedy cluster: pick a seed, group all unsorted items with `cosine >= CLUSTER_THRESHOLD` (start `0.80`) to it; if a group has `>= MIN_CLUSTER` items (start `4`), it's a cluster. Skip items already covered by an existing `suggested` gallery
+- [ ] Name the cluster with a small `generateText` call over the members' titles+tags (max ~24 chars); fall back to the most common tag
+- [ ] Create a `gallery` with `{ isAuto:true, suggested:true, title, centroid, itemCount }` and link the clustered artifacts
+- [ ] Keep it cheap: cap work (e.g. only run when unsorted count grew; only form one new cluster per call)
+
+```
+maybeClusterUnsorted(userId):
+  unsorted = readyEmbedded artifacts with no gallery link and !clusterDismissed
+  for seed in unsorted (not yet clustered):
+     group = [x in unsorted : cosine(seed.emb, x.emb) >= CLUSTER_THRESHOLD]
+     if len(group) >= MIN_CLUSTER:
+        name = summarizeName(group)      // small LLM call, editable later
+        g = insert gallery {isAuto:true, suggested:true, title:name, centroid:mean(group.emb), itemCount:len(group)}
+        link each item → g
+        break   // one suggestion per run
+```
+
+### E. Approve / Dismiss suggested galleries
+**File:** `convex/galleries.ts`
+
+- [ ] `approveGallery(galleryId)`: owner-guarded; set `suggested:false` (stays `isAuto:true`, becomes a real gallery, keeps items + centroid)
+- [ ] `dismissSuggestedGallery(galleryId)`: owner-guarded; delete the gallery + its `galleryArtifacts` links (items return to library), and set `clusterDismissed:true` on those artifacts so they aren't immediately re-clustered
+- [ ] Retire `findOrCreateAutoGallery` (dead once B/C land); keep `promoteGallery`/`dismissAutoGallery` only if still referenced, else remove
+
+### F. Galleries screen — show Suggested galleries inline
+**Files:** `src/app/(app)/(tabs)/(galleries)/index.tsx`, `src/components/gallery-card.tsx`
+
+- [ ] `listUserGalleries` already returns non-dismissed galleries incl. `suggested:true`. In the Galleries list, render suggested galleries **inline in the grid** (not the current separate "Auto-generated" footer), sorted to the top, each with a distinct **"Suggested"** treatment (badge + softer/dashed styling)
+- [ ] `gallery-card.tsx`: when `gallery.suggested`, show the "Suggested" badge and a context menu with **Approve** (`approveGallery`) and **Dismiss** (`dismissSuggestedGallery`); wire the currently-dead manual Edit/Delete actions while here
+- [ ] Remove the permanent auto/manual split UI now that suggestions are a transient state, not a second-class category
+
+### G. "Filed in ___ · Undo" feedback (no extra tap on save)
+**Files:** `src/app/(app)/(modal)/add.tsx` (or a small hook), `src/lib/toast.ts` (from Remaining Work #4)
+
+- [ ] Save flow is unchanged (one tap, sheet closes). After save, keep the new `artificatId` and subscribe to its gallery membership (reactive query). When it first gains a gallery, show a toast **"Filed in {gallery} · Undo"**; Undo calls `setGalleriesForArtifact` to remove it
+- [ ] Surface the currently-invisible states: render `status:"failed"` (e.g. "Couldn't read this — Retry") and improve the "Processing…" chip copy (`mansory-card.tsx`)
+
+### H. Copy fix
+**Files:** `create-gallery.tsx`, `edit-gallery/[galleryId].tsx`
+
+- [ ] The "naming a gallery helps us auto-sort items for you" copy is now **true** (centroid filing targets user galleries) — keep it; ensure onboarding copy still matches behavior
+
+### Tunables (locked defaults, adjust after dogfood)
+`MATCH_THRESHOLD=0.82` · `CLUSTER_THRESHOLD=0.80` · `MIN_CLUSTER=4` · one cluster formed per run. Start conservative on `MATCH_THRESHOLD` so wrong-filing is rare (Undo is the only in-the-moment correction).
+
+### Verify (end-to-end, via `npx convex dev` + app)
+- [ ] Save 3–4 clearly-related URLs into an existing gallery's topic → later saves land in that **existing** gallery (silent), confirmed by the "Filed in ___" toast; Undo removes it
+- [ ] Save an item unlike anything saved → stays in library unsorted, no gallery, no prompt
+- [ ] Save enough unsorted-but-related items (≥ `MIN_CLUSTER`) → a **Suggested** gallery appears inline in the Galleries grid with a sensible name
+- [ ] Approve → becomes a normal gallery; Dismiss → gallery + links gone, items return to library and don't immediately re-suggest
+- [ ] `npx biome check .` exits 0
+
+---
+
 ## Env Vars Required
 
 ```bash
@@ -432,6 +543,10 @@ EXPO_PUBLIC_CONVEX_SITE_URL=https://...convex.site
 - [ ] **Sort & Filter**: Discover "Oldest" reverses order; selecting "Images" + "Videos" shows both types (multi-select); ellipsis turns prominent + "Remove filters" appears when active; clearing restores all; controls don't affect active search results
 - [ ] **Settings**: Username shows real value; Privacy Policy link opens; Delete account removes all data and signs out
 - [ ] **Toasts**: Save artifact, create gallery, delete both → success toast appears each time
+- [ ] **Smart filing**: saving an item similar to an existing gallery files it there (not a new bucket); dissimilar items stay unsorted
+- [ ] **Suggested galleries**: ≥4 related unsorted saves produce an inline "Suggested" gallery; Approve keeps it, Dismiss removes it
+- [ ] **Filed toast**: a filed item shows "Filed in ___ · Undo"; Undo removes it from the gallery
+- [ ] **No duplicate buckets**: "Tech"/"Technology"-style near-duplicates no longer create separate galleries
 - [ ] **Biome**: `npx biome check .` exits 0
 - [ ] **EAS build**: `eas build --platform ios --profile production` completes without errors
 - [ ] **TestFlight**: Build installs and runs on a physical iPhone without crashes
