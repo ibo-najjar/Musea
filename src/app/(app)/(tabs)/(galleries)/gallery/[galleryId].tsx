@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/ui/empty-state";
 import { Text } from "@/components/ui/text";
 import { BOARDS } from "@/constants/dummy-data";
+import { useAppToast } from "@/lib/toast";
 import { api } from "~/convex/_generated/api";
 import type { Id } from "~/convex/_generated/dataModel";
 
@@ -25,6 +26,7 @@ export default function GalleryScreen() {
 
 	const router = useRouter();
 	const accent = useThemeColor("accent");
+	const toast = useAppToast();
 
 	const gallery = useQuery(api.galleries.getGalleryById, {
 		galleryId: galleryId as Id<"gallery">,
@@ -88,13 +90,21 @@ export default function GalleryScreen() {
 					text: "Delete",
 					style: "destructive",
 					onPress: async () => {
-						await deleteGallery({ galleryId: galleryId as Id<"gallery"> });
-						router.back();
+						try {
+							await deleteGallery({ galleryId: galleryId as Id<"gallery"> });
+							toast.success("Gallery deleted");
+							router.back();
+						} catch (err) {
+							toast.error(
+								"Couldn't delete gallery",
+								err instanceof Error ? err.message : undefined,
+							);
+						}
 					},
 				},
 			],
 		);
-	}, [deleteGallery, galleryId, router]);
+	}, [deleteGallery, galleryId, router, toast]);
 
 	const onPromoteGallery = useCallback(async () => {
 		await promoteGallery({ galleryId: galleryId as Id<"gallery"> });
@@ -190,7 +200,7 @@ export default function GalleryScreen() {
 				<Stack.Toolbar.Menu hidden={isSelecting} icon={"ellipsis"}>
 					<Stack.Toolbar.MenuAction
 						icon={"sparkles"}
-						hidden={gallery.isAuto}
+						hidden={!gallery.isAuto}
 						onPress={onPromoteGallery}
 					>
 						Add to my galleries
@@ -199,7 +209,7 @@ export default function GalleryScreen() {
 						icon={"xmark"}
 						destructive
 						onPress={onDismissGallery}
-						hidden={gallery.isAuto}
+						hidden={!gallery.isAuto}
 					>
 						Dismiss
 					</Stack.Toolbar.MenuAction>
@@ -212,7 +222,7 @@ export default function GalleryScreen() {
 								params: { galleryId },
 							})
 						}
-						hidden={!gallery.isAuto}
+						hidden={gallery.isAuto}
 					>
 						Edit Gallery
 					</Stack.Toolbar.MenuAction>
@@ -220,7 +230,7 @@ export default function GalleryScreen() {
 						icon={"trash"}
 						destructive
 						onPress={onDeleteGallery}
-						hidden={!gallery.isAuto}
+						hidden={gallery.isAuto}
 					>
 						Delete Gallery
 					</Stack.Toolbar.MenuAction>

@@ -14,6 +14,7 @@ import MasonryCard from "@/components/mansory-card";
 import MasonrySkeletonGrid from "@/components/masonry-skeleton";
 import { Button } from "@/components/ui/button";
 import Image from "@/components/ui/image";
+import { useAppToast } from "@/lib/toast";
 import { api } from "~/convex/_generated/api";
 import type { Doc, Id } from "~/convex/_generated/dataModel";
 
@@ -49,6 +50,7 @@ export default function HomeScreen() {
 	const currentUser = useQuery(api.auth.getCurrentUser);
 	const deleteArtifact = useMutation(api.artifacts.deleteArtifact);
 	const searchArtifacts = useAction(api.search.searchArtifacts);
+	const toast = useAppToast();
 
 	const [query, setQuery] = useState("");
 	const [searchResults, setSearchResults] = useState<
@@ -105,12 +107,22 @@ export default function HomeScreen() {
 					{
 						text: "Delete",
 						style: "destructive",
-						onPress: () => deleteArtifact({ artificatId: artifactId }),
+						onPress: async () => {
+							try {
+								await deleteArtifact({ artificatId: artifactId });
+								toast.success("Deleted");
+							} catch (err) {
+								toast.error(
+									"Couldn't delete",
+									err instanceof Error ? err.message : undefined,
+								);
+							}
+						},
 					},
 				],
 			);
 		},
-		[deleteArtifact],
+		[deleteArtifact, toast],
 	);
 
 	if (searching || (!isSearch && status === "LoadingFirstPage")) {

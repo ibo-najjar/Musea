@@ -58,6 +58,7 @@ All Week 1 security/backend work and most of Week 2 features are now done:
 | Settings account/username/legal/delete | Real username, profile edit, Privacy/Terms screens, `deleteAccount` mutation ✅ |
 | `listArtifacts`/`listGalleries` leaked all users | Auth + ownership guards everywhere ✅ |
 | `addArtifactToGallery` `"anonymous"` | Real `userId` from `ctx.auth` ✅ |
+| Galleries search bar (was dead) | Client-side title filter over `listUserGalleries` — filters manual grid + auto section live, `EmptyState` on no match ✅ |
 | `patchArtifact`/`deleteArtifact` no ownership | Ownership checks added ✅ |
 | `patchArtifact` exposed `status`/`embedding` | Validator restricted to safe fields ✅ |
 | `by_creation_time` index bug | Solved via `by_user` + `.order()` ✅ |
@@ -69,7 +70,6 @@ All Week 1 security/backend work and most of Week 2 features are now done:
 
 | Feature | Status |
 |---|---|
-| Galleries search bar | `Stack.SearchBar` rendered but **dead** — no `onChangeText`/state/filter |
 | Enrich prompt engineering | Functional but thin; text-only artifacts never enriched |
 | Add media from device | `add.tsx` is URL/text only — no photo/video picker |
 | Error handling & toasts | No toast lib, no error boundary; ad-hoc inline errors |
@@ -79,16 +79,16 @@ All Week 1 security/backend work and most of Week 2 features are now done:
 
 ## Remaining Work
 
-### 1. Galleries search bar
+### 1. Galleries search bar ✅ DONE
 **File:** `src/app/(app)/(tabs)/(galleries)/index.tsx`
 
-The `Stack.SearchBar` already renders but does nothing. Mirror the Discover screen's wiring (`onChangeText` → state → filter), but client-side over the already-loaded `listUserGalleries` results (no backend change — galleries are capped at 100).
+Client-side title filter over the already-loaded `listUserGalleries` results (no backend change). Mirrors the Discover screen's `Stack.SearchBar` wiring.
 
-- [ ] Add `const [query, setQuery] = useState("")`
-- [ ] `onChangeText={(e) => setQuery(e.nativeEvent.text)}` + `onCancelButtonPress={() => setQuery("")}` on `Stack.SearchBar`
-- [ ] Filter `manual`/`auto` by `title.toLowerCase().includes(query.trim().toLowerCase())` before render
-- [ ] When `query` is non-empty: hide the "Auto-generated" section header if no auto matches; show a "no galleries" empty state if both lists are empty
-- [ ] Verify: typing filters both manual grid and auto section live; clearing restores full list
+- [x] `const [query, setQuery] = useState("")`
+- [x] `onChangeText={(e) => setQuery(e.nativeEvent.text)}` + `onCancelButtonPress={() => setQuery("")}` on `Stack.SearchBar`
+- [x] Derive `filteredManual`/`filteredAuto` via `title.toLowerCase().includes(query.trim().toLowerCase())`
+- [x] "Auto-generated" footer gates on `filteredAuto.length > 0` (header auto-hides when no auto matches); `EmptyState` via `ListEmptyComponent` (guarded by `filteredAuto.length === 0`) when nothing matches
+- [ ] Verify on simulator: typing filters both manual grid and auto section live; clearing restores full list
 
 ### 2. Enrich prompt engineering
 **File:** `convex/ai.ts`
@@ -126,11 +126,96 @@ Current prompt is a single short system line and never runs for text-only artifa
 **Files:** `app.json`, `eas.json`, `PrivacyInfo.xcprivacy`
 
 - [ ] `eas.json`: add `"distribution": "store"` to production build; fill `submit.production` with Apple credentials
-- [ ] Verify bundle ID, version `1.0.0`, build number, display name in `app.json`
-- [ ] Audit permission purpose strings — camera, photo library (needed for feature #3), network
+- [ ] Verify bundle ID `com.ibonajjar.musea` (production variant), version `1.0.0`, build number, display name in `app.json`
+- [ ] Audit permission purpose strings — remove unused camera + microphone permissions (features not shipped); keep photo library
 - [ ] Add `PrivacyInfo.xcprivacy` (UserDefaults, file timestamps, system boot time — iOS 17+ required reasons)
-- [ ] App Store Connect: description, keywords, support URL, age rating (4+), privacy policy URL
+- [ ] Host Privacy Policy + Terms publicly (currently in-app only at `src/constants/legal.ts`) — App Store requires a public Privacy Policy URL
+- [ ] Create a demo email/password account for App Review (email/password login is enabled)
 - [ ] 6.7" + 6.1" screenshots (≥3 each); TestFlight build → invite ≥2 testers → fix crashes before public submit
+
+#### App Store Connect — v1.0.0 Listing
+
+**Prerequisites before filling the dashboard:**
+1. Host legal docs → capture `PRIVACY_URL` + `TERMS_URL` + `SUPPORT_URL` (GitHub Pages or any static host)
+2. Ensure submitted build uses bundle id `com.ibonajjar.musea` (production variant, not `.dev`/`.preview`)
+3. Create test email/password account for App Review section
+
+**App Information**
+
+| Field | Value |
+|---|---|
+| Name | `Musea` |
+| Subtitle (≤30) | `Save anything, find it fast` |
+| Primary Category | Productivity |
+| Content Rights | Check "contains third-party content" — app fetches OG previews of user-supplied URLs |
+| Age Rating | Target **4+**. ⚠️ The "Unrestricted Web Access" question: `expo-web-browser` opens user-saved URLs in SFSafariViewController — most reviewers accept 4+, but be prepared for a 17+ bump |
+
+**App Privacy ("nutrition label")**
+
+Does this app track you? → **No** (zero analytics/ads/tracking SDKs).
+Declare these types (all: Linked to Identity = Yes, Tracking = No, Purpose = App Functionality):
+
+| Apple category | Type | Why |
+|---|---|---|
+| Contact Info | Email Address | Account identity (OAuth / email signup) |
+| Contact Info | Name | Display name / profile |
+| User Content | Photos or Videos | Profile avatar + images saved to galleries |
+| User Content | Other User Content | Saved bookmarks, quotes, gallery titles, in-app feedback |
+| Identifiers | User ID | `userId` stamped on all Convex tables |
+
+Do **not** declare: Search History (queries not persisted), Diagnostics (no analytics SDK).
+
+**Listing copy**
+
+Promotional Text (≤170 chars, editable without re-review):
+```
+Save links, images, and quotes into one beautiful, searchable library. Musea auto-tags and files everything with AI, so you can find anything the moment you need it.
+```
+
+Description (≤4000):
+```
+Musea is your visual library for everything worth keeping.
+
+Save a link, an image, or a quote, and Musea instantly turns it into a clean, scannable card — then files it into the right gallery for you, automatically. No folders to fuss over, no tags to remember.
+
+WHY MUSEA
+• Save anything — paste a URL, drop an image, or capture a quote. Share straight from Safari and other apps.
+• Beautiful by default — rich previews, a masonry grid, inline video, and full-screen image zoom.
+• Organized for you — AI reads what you save and sorts it into topic galleries automatically. Promote the ones you love.
+• Find it instantly — smart search understands meaning, not just keywords, so the right item surfaces in milliseconds.
+• Yours alone — your library is private to your account.
+
+HOW IT WORKS
+1. Save something — a link, photo, or note.
+2. Musea enriches it with a title, summary, and tags.
+3. It lands in a gallery, ready to rediscover whenever you need it.
+
+Sign in with Apple or Google and start building your library in seconds.
+```
+
+Keywords (≤100 chars):
+```
+bookmark,save,visual,links,gallery,organize,reading,collection,curate,moodboard,notes,clipper
+```
+
+| Field | Value |
+|---|---|
+| Support URL | `SUPPORT_URL` |
+| Privacy Policy URL | `PRIVACY_URL` |
+| Version | `1.0.0` |
+| Copyright | `2026 Ibrahim Najjar` |
+| What's New | `Welcome to Musea — your visual library for everything worth keeping.` |
+
+Screenshots: 6.7" (1290×2796) and 6.1" (1179×2556), ≥3 each. Suggested: home grid, add → enriched card, topic gallery, search results, artifact detail.
+
+**App Review Information**
+
+| Field | Value |
+|---|---|
+| Sign-in required | Yes |
+| Demo account | email/password test account (create from Prerequisite 3) |
+| Contact email | `ibonajjar.dev@gmail.com` |
+| Notes | `Musea is a personal visual bookmarking app. Saved links/images are enriched via OpenAI (titles, tags, embeddings) and organized into galleries. No ads, no third-party tracking/analytics. Email/password demo account provided; Sign in with Apple/Google also supported.` |
 
 ---
 

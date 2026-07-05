@@ -46,7 +46,7 @@ function TouchableGlassNative({
 				ref={ref}
 				collapsable={false}
 				isInteractive={!disabled}
-				style={[disabled && { opacity: 0.5 }, style]}
+				style={[disabled && { opacity: 0.8 }, style]}
 				{...rest}
 			/>
 		</GestureDetector>

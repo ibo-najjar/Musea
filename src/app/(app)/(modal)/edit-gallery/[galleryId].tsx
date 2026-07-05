@@ -15,6 +15,7 @@ import z from "zod";
 import ModalCloseButton from "@/components/layout/modal-close-button";
 import ModalSubmitButton from "@/components/layout/modal-submit-button";
 import ScrollView from "@/components/ui/scrollview";
+import { useAppToast } from "@/lib/toast";
 import { api } from "~/convex/_generated/api";
 import type { Id } from "~/convex/_generated/dataModel";
 
@@ -32,6 +33,7 @@ export default function EditGalleryScreen() {
 		galleryId: galleryId as Id<"gallery">,
 	});
 	const updateGallery = useMutation(api.galleries.updateGallery);
+	const toast = useAppToast();
 
 	const {
 		control,
@@ -49,11 +51,19 @@ export default function EditGalleryScreen() {
 	}, [gallery, reset]);
 
 	const onSubmit = async (data: EditGalleryForm) => {
-		await updateGallery({
-			galleryId: galleryId as Id<"gallery">,
-			title: data.name,
-		});
-		router.back();
+		try {
+			await updateGallery({
+				galleryId: galleryId as Id<"gallery">,
+				title: data.name,
+			});
+			toast.success("Gallery updated");
+			router.back();
+		} catch (err) {
+			toast.error(
+				"Couldn't update gallery",
+				err instanceof Error ? err.message : undefined,
+			);
+		}
 	};
 
 	return (

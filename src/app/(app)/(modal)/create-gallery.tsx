@@ -20,6 +20,7 @@ import ModalSubmitButton from "@/components/layout/modal-submit-button";
 import { Button } from "@/components/ui/button";
 import ScrollView from "@/components/ui/scrollview";
 import { TouchableGlass } from "@/components/ui/touchable-glass";
+import { useAppToast } from "@/lib/toast";
 import { api } from "~/convex/_generated/api";
 
 const createGallerySchema = z.object({
@@ -31,6 +32,7 @@ export type CreateGalleryForm = z.infer<typeof createGallerySchema>;
 export default function CreateBoardSheet() {
 	const { top } = useSafeAreaInsets();
 	const createGallery = useMutation(api.galleries.createGallery);
+	const toast = useAppToast();
 
 	const accentForeground = useThemeColor("surface-secondary-foreground");
 
@@ -46,8 +48,16 @@ export default function CreateBoardSheet() {
 	});
 
 	const onSubmit = async (data: CreateGalleryForm) => {
-		await createGallery({ title: data.name });
-		router.back();
+		try {
+			await createGallery({ title: data.name });
+			toast.success("Gallery created");
+			router.back();
+		} catch (err) {
+			toast.error(
+				"Couldn't create gallery",
+				err instanceof Error ? err.message : undefined,
+			);
+		}
 	};
 
 	return (

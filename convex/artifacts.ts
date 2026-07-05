@@ -90,6 +90,12 @@ export const createArtifact = mutation({
 			await ctx.scheduler.runAfter(0, internal.ai.enrichArtifact, {
 				artificatId,
 			});
+		} else if (isTextOnly) {
+			// Quotes/notes: embedding-only so they surface in vector search.
+			// Embeddings are negligible cost, so this skips the AI enrichment quota.
+			await ctx.scheduler.runAfter(0, internal.ai.embedTextArtifact, {
+				artificatId,
+			});
 		}
 
 		return artificatId;

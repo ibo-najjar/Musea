@@ -15,6 +15,7 @@ import ModalCloseButton from "@/components/layout/modal-close-button";
 import { Button } from "@/components/ui/button";
 import Image from "@/components/ui/image";
 import ScrollView from "@/components/ui/scrollview";
+import { useAppToast } from "@/lib/toast";
 import { api } from "~/convex/_generated/api";
 
 type PreviewData = {
@@ -56,6 +57,7 @@ export default function Add() {
 	const [textWeight, setTextWeight] = useState<TextWeight>("normal");
 
 	const router = useRouter();
+	const toast = useAppToast();
 	const { resetShareIntent } = useShareIntentContext();
 	const getPreview = useAction(api.preview.getPreview);
 	const createItem = useMutation(api.artifacts.createArtifact);
@@ -151,13 +153,17 @@ export default function Add() {
 			setPreviewData(null);
 			setUrlToCheck(null);
 			if (sharedUrl) resetShareIntent();
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Couldn't save this item");
-		} finally {
-			setSaving(false);
+			toast.success("Saved");
 			if (router.canDismiss()) {
 				router.dismiss();
 			}
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : "Couldn't save this item";
+			setError(message);
+			toast.error("Couldn't save this item", message);
+		} finally {
+			setSaving(false);
 		}
 	};
 

@@ -46,6 +46,16 @@ export default function SettingsLayout() {
 					title: "Terms of Service",
 				}}
 			/>
+			<Stack.Screen
+				name="delete-account"
+				options={{
+					presentation: "modal",
+					// headerLargeTitleEnabled: true,
+					// sheetAllowedDetents: [1],
+					sheetGrabberVisible: true,
+					title: "Delete Account",
+				}}
+			/>
 		</Stack>
 	);
 }

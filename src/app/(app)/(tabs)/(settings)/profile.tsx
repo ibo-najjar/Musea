@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import ScrollView from "@/components/ui/scrollview";
 import { Text } from "@/components/ui/text";
 import { authClient } from "@/lib/auth-client";
+import { useAppToast } from "@/lib/toast";
 import { api } from "~/convex/_generated/api";
 
 export default function Profile() {
@@ -19,6 +20,7 @@ export default function Profile() {
 	const [displayName, setDisplayName] = useState(session?.user.name ?? "");
 	const [username, setUsername] = useState(session?.user.username ?? "");
 	const foreground = useThemeColor("foreground");
+	const toast = useAppToast();
 	const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 	const saveFile = useMutation(api.files.saveFile);
 	const updateProfileImage = useMutation(api.user.updateProfileImage);
@@ -73,6 +75,10 @@ export default function Profile() {
 			refetch();
 		} catch (error) {
 			console.error("Error uploading image:", error);
+			toast.error(
+				"Couldn't update photo",
+				error instanceof Error ? error.message : undefined,
+			);
 		} finally {
 			setIsUploading(false);
 		}
@@ -83,8 +89,10 @@ export default function Profile() {
 		try {
 			setIsSaving(true);
 			if (hasNameChanged) await updateProfile({ name: trimmedName });
-			if (hasUsernameChanged) await updateUsername({ username: trimmedUsername });
+			if (hasUsernameChanged)
+				await updateUsername({ username: trimmedUsername });
 			await refetch();
+			toast.success("Profile updated");
 		} catch (error) {
 			Alert.alert(
 				"Couldn't save profile",
@@ -130,7 +138,7 @@ export default function Profile() {
 							</Avatar.Fallback>
 						</Avatar>
 					</Button>
-					<Button size="sm" isGlass variant="tertiary" className="mt-2">
+					{/* <Button size="sm" isGlass variant="tertiary" className="mt-2">
 						<SymbolView
 							name="person.crop.circle.fill.badge.xmark"
 							size={16}
@@ -139,7 +147,7 @@ export default function Profile() {
 						<Text className="font-medium text-sm">
 							{isUploading ? "Uploading..." : "Remove"}
 						</Text>
-					</Button>
+					</Button> */}
 				</View>
 				<ListGroup className="mt-6">
 					<ListGroup.Item className="p-0">

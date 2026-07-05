@@ -100,6 +100,8 @@ export function GalleryCard({ gallery }: { gallery: Doc<"gallery"> }) {
 		galleryId: gallery._id,
 	});
 
+	const deleteGallery = useMutation(api.galleries.deleteGallery);
+
 	const accent = useThemeColor("accent");
 	const promoteGallery = useMutation(api.galleries.promoteGallery);
 	const dismissAutoGallery = useMutation(api.galleries.dismissAutoGallery);
@@ -170,13 +172,14 @@ export function GalleryCard({ gallery }: { gallery: Doc<"gallery"> }) {
 					Dismiss
 				</Link.MenuAction>
 
-				<Link.MenuAction icon="pencil" hidden={gallery.isAuto === true}>
+				{/* <Link.MenuAction icon="pencil" hidden={gallery.isAuto === true}>
 					Edit Gallery
-				</Link.MenuAction>
+				</Link.MenuAction> */}
 				<Link.MenuAction
 					icon="rectangle.stack.fill.badge.minus"
 					destructive
 					hidden={gallery.isAuto === true}
+					onPress={() => deleteGallery({ galleryId: gallery._id })}
 				>
 					Delete Gallery
 				</Link.MenuAction>

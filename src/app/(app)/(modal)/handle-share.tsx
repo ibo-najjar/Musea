@@ -1,5 +1,5 @@
-import { useShareIntentContext } from "expo-share-intent";
 import { useRouter } from "expo-router";
+import { useShareIntentContext } from "expo-share-intent";
 import { Spinner } from "heroui-native";
 import { useEffect } from "react";
 import { View } from "react-native";
@@ -18,7 +18,7 @@ export default function HandleShareScreen() {
 				params: { sharedUrl: value },
 			});
 		}
-	}, [hasShareIntent, shareIntent]);
+	}, [hasShareIntent, shareIntent, router]);
 
 	return (
 		<View className="flex-1 items-center justify-center">

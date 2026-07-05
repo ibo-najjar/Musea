@@ -2,10 +2,6 @@ import { useRouter } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { useThemeColor } from "heroui-native";
 import { useEffect } from "react";
-import {
-	addInterceptedTabPressListener,
-	setInterceptedTabIndex,
-} from "../../modules/my-module/src/MyModule";
 
 export default function AppTabs() {
 	const [accent, background, foreground] = useThemeColor([

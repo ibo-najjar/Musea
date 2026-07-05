@@ -4,6 +4,7 @@ import {
 } from "@react-native-vector-icons/material-design-icons";
 import { SFSymbol, SymbolView } from "expo-symbols";
 import {
+	cn,
 	ListGroup as HerouiListGroup,
 	type ListGroupItemProps as HerouiListGroupItemProps,
 	type ListGroupRootProps,
@@ -31,6 +32,7 @@ type ListGroupItemProps = {
 	customContent?: React.ReactNode;
 	hidePrefix?: boolean;
 	hideSuffix?: boolean;
+	destructive?: boolean;
 } & HerouiListGroupItemProps;
 
 const ListGroupItem: React.FC<ListGroupItemProps> = ({
@@ -40,11 +42,13 @@ const ListGroupItem: React.FC<ListGroupItemProps> = ({
 	iconName,
 	hidePrefix = false,
 	hideSuffix = false,
+	destructive = false,
 	customContent,
 	onPress,
 	...props
 }) => {
 	const foreground = useThemeColor("foreground");
+	const danger = useThemeColor("danger");
 
 	return (
 		<PressableFeedback animation={false} onPress={onPress}>
@@ -54,7 +58,11 @@ const ListGroupItem: React.FC<ListGroupItemProps> = ({
 					{!hidePrefix && (
 						<HerouiListGroup.ItemPrefix>
 							{iconName && (
-								<SymbolView name={iconName} size={24} tintColor={foreground} />
+								<SymbolView
+									name={iconName}
+									size={24}
+									tintColor={destructive ? danger : foreground}
+								/>
 							)}
 						</HerouiListGroup.ItemPrefix>
 					)}
@@ -62,7 +70,11 @@ const ListGroupItem: React.FC<ListGroupItemProps> = ({
 						customContent
 					) : (
 						<HerouiListGroup.ItemContent>
-							<HerouiListGroup.ItemTitle>{label}</HerouiListGroup.ItemTitle>
+							<HerouiListGroup.ItemTitle
+								className={cn("", { "text-danger": destructive })}
+							>
+								{label}
+							</HerouiListGroup.ItemTitle>
 							{description && (
 								<HerouiListGroup.ItemDescription>
 									{description}

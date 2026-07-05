@@ -104,7 +104,7 @@ npx convex dev
 - `_layout.tsx` — Root: wraps everything in `ConvexBetterAuthProvider`, `HeroUINativeProvider`, `ShareIntentProvider`, `GestureHandlerRootView`, `KeyboardProvider`
 - `(auth)/` — Login screen, shown when unauthenticated (`Stack.Protected guard={!session}`)
 - `(app)/` — Main app, shown when authenticated (`Stack.Protected guard={!!session}`)
-  - `(tabs)/` — 4 tabs: Home (`index`), Galleries, Settings, Add (the Add tab is intercepted natively via `modules/my-module` and opens a modal instead)
+  - `(tabs)/` — 4 tabs: Home (`index`), Galleries, Settings, Add (the Add tab is `disabled` and its native tab press is intercepted via `NativeTabs` `onTabSelectionPrevented` in `src/components/app-tabs.tsx`, opening a modal instead)
   - `(modal)/` — Sheet presentations for artifact details, gallery creation/editing, share handling
 
 **Backend** (`convex/`) is a Convex deployment:
