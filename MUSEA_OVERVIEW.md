@@ -94,26 +94,6 @@ mutation, cursor pagination (no full-table scans), and AI rate limiting
    audit permission strings, host Privacy Policy + Terms publicly, create a demo
    review account, capture screenshots, and run a TestFlight beta.
 
----
-
-## On the Roadmap: Smart Auto-Organization v2
-
-Today, auto-filing picks one topic from a fixed list and matches galleries by
-exact title — so the AI is invisible, galleries the user creates never get
-auto-filled, and near-duplicate buckets ("Tech" vs "Technology") appear.
-
-The redesign (fully specced, not yet built) makes filing **embedding-based**:
-- New saves are matched to *your existing galleries* by meaning and filed
-  silently (with an undoable "Filed in ___" toast).
-- When enough unsorted-but-related items accumulate, a **Suggested gallery**
-  appears inline for you to Approve or Dismiss.
-- One unified gallery pool — the galleries you name become the taxonomy the AI
-  works within.
-
-This is the feature that makes the "auto-organized" promise actually true.
-
----
-
 ## Tech Stack (for reference)
 
 Expo / React Native · Expo Router · Convex backend · Better Auth (Apple +
