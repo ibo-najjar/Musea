@@ -2,8 +2,8 @@
 
 import { Skeleton } from "heroui-native";
 import { View } from "react-native";
-import Image from "@/components/ui/image";
-import { Doc } from "~/convex/_generated/dataModel";
+import type { Doc } from "~/convex/_generated/dataModel";
+import { PreviewTile } from "./preview-tile";
 import { Text } from "./ui/text";
 
 const SIZE = 36;
@@ -17,19 +17,25 @@ export const SelectedArtifact = ({
 }) => {
 	return (
 		<View
-			className="rounded overflow-hidden border-2 border-surface bg-surface"
+			className="relative overflow-hidden rounded border-2 border-surface bg-surface"
 			style={{
 				width: SIZE,
 				height: SIZE,
 			}}
 		>
-			<Skeleton isLoading={!artifact} className="w-full h-full">
-				<Image
-					source={{ uri: artifact?.image }}
-					style={{ width: "100%", height: "100%" }}
-					contentFit="cover"
+			{artifact ? (
+				<PreviewTile
+					item={{
+						image: artifact.image,
+						title: artifact.title,
+						description: artifact.description,
+					}}
+					variant="compact"
+					className="absolute inset-0"
 				/>
-			</Skeleton>
+			) : (
+				<Skeleton isLoading className="absolute inset-0" />
+			)}
 		</View>
 	);
 };
@@ -47,7 +53,7 @@ export const SelectedArtifactsStack = ({
 			{visible.map((item, i) => (
 				<View
 					key={item._id}
-					className="rounded overflow-hidden border-2 border-surface bg-surface"
+					className="relative overflow-hidden rounded border-2 border-surface bg-surface"
 					style={{
 						width: SIZE,
 						height: SIZE,
@@ -55,23 +61,27 @@ export const SelectedArtifactsStack = ({
 						zIndex: visible.length - i, // first item on top
 					}}
 				>
-					<Image
-						source={{ uri: item.image }}
-						style={{ width: "100%", height: "100%" }}
-						contentFit="cover"
+					<PreviewTile
+						item={{
+							image: item.image,
+							title: item.title,
+							description: item.description,
+						}}
+						variant="compact"
+						className="absolute inset-0"
 					/>
 				</View>
 			))}
 			{remaining > 0 && (
 				<View
-					className="rounded-md items-center justify-center bg-surface border-2 border-background"
+					className="items-center justify-center rounded-md border-2 border-background bg-surface"
 					style={{
 						width: SIZE,
 						height: SIZE,
 						marginLeft: -OVERLAP,
 					}}
 				>
-					<Text className="text-[10px] font-medium text-foreground">
+					<Text className="font-medium text-[10px] text-foreground">
 						+{remaining}
 					</Text>
 				</View>

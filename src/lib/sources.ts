@@ -1,123 +1,61 @@
 // lib/sources.ts
-import * as simpleIcons from "simple-icons";
+import type { ImageSourcePropType } from "react-native";
 
-type SourceConfig = {
-	key: string;
-	label: string;
-	svgPath: string; // the icon's SVG path data
-	color: string; // brand color, hex
-};
+// Mirrors convex/schema.ts `artificats.sourceType`. Decided once at creation
+// time (see convex/lib/sourceType.ts) — never re-derived from the artifact's
+// `source` URL at render time.
+export type SourceType =
+	| "pinterest"
+	| "x"
+	| "youtube"
+	| "reddit"
+	| "tiktok"
+	| "instagram"
+	| "gallery"
+	| "files"
+	| "link"
+	| "richtext";
 
-const UNKNOWN_SOURCE: SourceConfig = {
-	key: "web",
-	label: "Web",
-	svgPath: simpleIcons.siGooglechrome.path, // or any generic globe-ish fallback
-	color: "#6B7280",
-};
+const DIRECTABLE_SOURCES: SourceType[] = [
+	"pinterest",
+	"x",
+	"youtube",
+	"reddit",
+	"tiktok",
+	"instagram",
+];
 
-const SOURCE_BY_HOST: Record<string, SourceConfig> = {
-	"pinterest.com": {
-		key: "pinterest",
-		label: "Pinterest",
-		svgPath: simpleIcons.siPinterest.path,
-		color: `#${simpleIcons.siPinterest.hex}`,
-	},
-	"pin.it": {
-		key: "pinterest",
-		label: "Pinterest",
-		svgPath: simpleIcons.siPinterest.path,
-		color: `#${simpleIcons.siPinterest.hex}`,
-	},
-
-	"x.com": {
-		key: "x",
-		label: "X",
-		svgPath: simpleIcons.siX.path,
-		color: `#${simpleIcons.siX.hex}`,
-	},
-	"twitter.com": {
-		key: "x",
-		label: "X",
-		svgPath: simpleIcons.siX.path,
-		color: `#${simpleIcons.siX.hex}`,
-	},
-	"t.co": {
-		key: "x",
-		label: "X",
-		svgPath: simpleIcons.siX.path,
-		color: `#${simpleIcons.siX.hex}`,
-	},
-
-	"youtube.com": {
-		key: "youtube",
-		label: "YouTube",
-		svgPath: simpleIcons.siYoutube.path,
-		color: `#${simpleIcons.siYoutube.hex}`,
-	},
-	"youtu.be": {
-		key: "youtube",
-		label: "YouTube",
-		svgPath: simpleIcons.siYoutube.path,
-		color: `#${simpleIcons.siYoutube.hex}`,
-	},
-
-	"reddit.com": {
-		key: "reddit",
-		label: "Reddit",
-		svgPath: simpleIcons.siReddit.path,
-		color: `#${simpleIcons.siReddit.hex}`,
-	},
-	"redd.it": {
-		key: "reddit",
-		label: "Reddit",
-		svgPath: simpleIcons.siReddit.path,
-		color: `#${simpleIcons.siReddit.hex}`,
-	},
-
-	"tiktok.com": {
-		key: "tiktok",
-		label: "TikTok",
-		svgPath: simpleIcons.siTiktok.path,
-		color: `#${simpleIcons.siTiktok.hex}`,
-	},
-	"vm.tiktok.com": {
-		key: "tiktok",
-		label: "TikTok",
-		svgPath: simpleIcons.siTiktok.path,
-		color: `#${simpleIcons.siTiktok.hex}`,
-	},
-	"vt.tiktok.com": {
-		key: "tiktok",
-		label: "TikTok",
-		svgPath: simpleIcons.siTiktok.path,
-		color: `#${simpleIcons.siTiktok.hex}`,
-	},
-
-	"instagram.com": {
-		key: "instagram",
-		label: "Instagram",
-		svgPath: simpleIcons.siInstagram.path,
-		color: `#${simpleIcons.siInstagram.hex}`,
-	},
-	"instagr.am": {
-		key: "instagram",
-		label: "Instagram",
-		svgPath: simpleIcons.siInstagram.path,
-		color: `#${simpleIcons.siInstagram.hex}`,
-	},
-};
-
-export function getSourceFromUrl(url: string | undefined | null): SourceConfig {
-	if (!url) return UNKNOWN_SOURCE;
-	try {
-		const hostname = new URL(url).hostname.replace(/^www\./, "");
-		if (SOURCE_BY_HOST[hostname]) return SOURCE_BY_HOST[hostname];
-		// Match CDN subdomains, e.g. scontent-iad3-1.cdninstagram.com
-		if (hostname.endsWith(".cdninstagram.com") || hostname === "cdninstagram.com") {
-			return SOURCE_BY_HOST["instagram.com"];
-		}
-		return UNKNOWN_SOURCE;
-	} catch {
-		return UNKNOWN_SOURCE;
-	}
+export function isSourceDirectable(
+	sourceType: SourceType | undefined,
+): boolean {
+	return sourceType ? DIRECTABLE_SOURCES.includes(sourceType) : false;
 }
+
+export const SOURCE_LABELS: Record<SourceType, string> = {
+	pinterest: "Pinterest",
+	x: "X",
+	youtube: "YouTube",
+	reddit: "Reddit",
+	tiktok: "TikTok",
+	instagram: "Instagram",
+	gallery: "Gallery",
+	files: "Files",
+	link: "Link",
+	richtext: "Note",
+};
+
+// PNG icons, dropped in per source type. Until filled in, SourceIcon
+// renders nothing for that type rather than a broken image.
+// e.g. pinterest: require("@/assets/source-icons/pinterest.png"),
+export const SOURCE_ICONS: Partial<Record<SourceType, ImageSourcePropType>> = {
+	pinterest: require("@/assets/sources/pinterest.png"),
+	x: require("@/assets/sources/x.png"),
+	youtube: require("@/assets/sources/youtube.png"),
+	reddit: require("@/assets/sources/reddit.png"),
+	tiktok: require("@/assets/sources/tiktok.png"),
+	instagram: require("@/assets/sources/instagram.png"),
+	files: require("@/assets/sources/files.png"),
+	gallery: require("@/assets/sources/photos.png"),
+	link: require("@/assets/sources/safari.png"),
+	richtext: require("@/assets/sources/notes.png"),
+};

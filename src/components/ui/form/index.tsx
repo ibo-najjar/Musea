@@ -2,7 +2,7 @@ import {
 	MaterialDesignIcons,
 	type MaterialDesignIconsIconName,
 } from "@react-native-vector-icons/material-design-icons";
-import { SFSymbol, SymbolView } from "expo-symbols";
+import { type SFSymbol, SymbolView } from "expo-symbols";
 import {
 	cn,
 	ListGroup as HerouiListGroup,
@@ -11,7 +11,7 @@ import {
 	PressableFeedback,
 	useThemeColor,
 } from "heroui-native";
-import React from "react";
+import type React from "react";
 import { withUniwind } from "uniwind";
 
 const StyledMaterialDesignIcons = withUniwind(MaterialDesignIcons);

@@ -3,12 +3,29 @@ import "../global.css";
 
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { type ErrorBoundaryProps, Stack, useRouter } from "expo-router";
+import {
+	DarkTheme,
+	DefaultTheme,
+	type ErrorBoundaryProps,
+	Stack,
+	ThemeProvider,
+	useRouter,
+} from "expo-router";
 import { ShareIntentProvider } from "expo-share-intent";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+// import * as SystemUI from "expo-system-ui";
 import { HeroUINativeProvider, useThemeColor } from "heroui-native";
-import { Pressable, Text, View } from "react-native";
+import { useEffect } from "react";
+import { Pressable, Text, useColorScheme, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+
+SplashScreen.preventAutoHideAsync();
+SplashScreen.setOptions({
+	duration: 1000,
+	fade: true,
+});
 
 // Renders in place of RootLayout when it throws, so it sits OUTSIDE all the
 // providers below — keep it to plain primitives with no theme/provider deps.
@@ -54,13 +71,49 @@ const convex = new ConvexReactClient(
 		unsavedChangesWarning: false,
 	},
 );
-export default function RootLayout() {
-	const foreground = useThemeColor("foreground");
-	const router = useRouter();
 
-	const { data: session } = authClient.useSession();
+export default function RootLayout() {
+	const [foreground, background, surface] = useThemeColor([
+		"foreground",
+		"background",
+		"surface",
+	]);
+	const router = useRouter();
+	const colorScheme = useColorScheme();
+
+	const AppDarkTheme = {
+		...DarkTheme,
+		colors: {
+			...DarkTheme.colors,
+			background,
+			card: surface,
+		},
+	};
+	const AppLightTheme = {
+		...DefaultTheme,
+		colors: {
+			...DefaultTheme.colors,
+			background,
+			card: surface,
+		},
+	};
+
+	const { data: session, isPending } = authClient.useSession();
+
+	useEffect(() => {
+		if (!isPending) {
+			SplashScreen.hideAsync();
+		}
+	}, [isPending]);
+
+	// useEffect(() => {
+	// 	SystemUI.setBackgroundColorAsync(
+	// 		colorScheme === "dark" ? Colors.dark.background : Colors.light.background,
+	// 	);
+	// }, [colorScheme]);
 
 	return (
+		// @ts-expect-error - authClient is not typed correctly
 		<ConvexBetterAuthProvider client={convex} authClient={authClient}>
 			<KeyboardProvider>
 				<GestureHandlerRootView style={{ flex: 1 }}>
@@ -76,24 +129,29 @@ export default function RootLayout() {
 								onResetShareIntent: () => router.replace("/"),
 							}}
 						>
-							<Stack
-								screenOptions={{
-									headerShown: false,
-									headerTransparent: true,
-									title: "",
-									headerBackVisible: false,
-									headerTitleStyle: {
-										color: foreground,
-									},
-								}}
+							<ThemeProvider
+								value={colorScheme === "dark" ? AppDarkTheme : AppLightTheme}
 							>
-								<Stack.Protected guard={!!session}>
-									<Stack.Screen name="(app)" />
-								</Stack.Protected>
-								<Stack.Protected guard={!session}>
-									<Stack.Screen name="(auth)" />
-								</Stack.Protected>
-							</Stack>
+								<StatusBar style="auto" />
+								<Stack
+									screenOptions={{
+										headerShown: false,
+										headerTransparent: true,
+										title: "",
+										headerBackVisible: false,
+										headerTitleStyle: {
+											color: foreground,
+										},
+									}}
+								>
+									<Stack.Protected guard={!!session}>
+										<Stack.Screen name="(app)" />
+									</Stack.Protected>
+									<Stack.Protected guard={!session}>
+										<Stack.Screen name="(auth)" />
+									</Stack.Protected>
+								</Stack>
+							</ThemeProvider>
 						</ShareIntentProvider>
 					</HeroUINativeProvider>
 				</GestureHandlerRootView>

@@ -2,7 +2,6 @@ import { useMutation } from "convex/react";
 import { useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/build/react-navigation";
 import {
-	Input,
 	Label,
 	Spinner,
 	TextField,
@@ -19,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ModalCloseButton from "@/components/layout/modal-close-button";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import ScrollView from "@/components/ui/scrollview";
 import { authClient } from "@/lib/auth-client";
 import { useAppToast } from "@/lib/toast";

@@ -19,7 +19,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
 	...config,
 	name: getAppName(),
 	slug: "musea",
-	version: "0.0.1",
+	version: "0.0.2",
 	ios: {
 		...config.ios,
 		bundleIdentifier: getUniqueIdentifier(),

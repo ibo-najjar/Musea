@@ -16,11 +16,6 @@ export default function AppTabs() {
 
 	return (
 		<NativeTabs
-			unstable_nativeProps={{
-				onTabSelectionPrevented: (event) => {
-					router.push("/(app)/(modal)/add");
-				},
-			}}
 			minimizeBehavior="onScrollDown"
 			backgroundColor={background}
 			indicatorColor={ripple}
@@ -52,7 +47,18 @@ export default function AppTabs() {
 					renderingMode="template"
 				/>
 			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name="add" role="search" disabled>
+			<NativeTabs.Trigger
+				name="add"
+				role="search"
+				disabled
+				listeners={{
+					tabPress: (e) => {
+						if (e.data.isPrevented) {
+							router.push("/(app)/(modal)/add");
+						}
+					},
+				}}
+			>
 				<NativeTabs.Trigger.Label hidden>Add</NativeTabs.Trigger.Label>
 				<NativeTabs.Trigger.Icon sf={"plus"} renderingMode="template" />
 			</NativeTabs.Trigger>

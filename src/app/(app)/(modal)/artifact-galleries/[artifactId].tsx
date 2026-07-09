@@ -16,7 +16,7 @@ import { GalleryListItem } from "@/components/gallery-list-Item";
 import ModalSubmitButton from "@/components/layout/modal-submit-button";
 import { SelectedArtifact } from "@/components/selected-artifact-stack";
 import { api } from "~/convex/_generated/api";
-import { Doc, Id } from "~/convex/_generated/dataModel";
+import { Doc, type Id } from "~/convex/_generated/dataModel";
 
 export default function ItemBoards() {
 	const router = useRouter();
@@ -164,6 +164,7 @@ export default function ItemBoards() {
 
 			<FlatList
 				contentContainerClassName="px-5"
+				className="bg-background"
 				contentContainerStyle={{ paddingTop: headerHeight + 16 }}
 				data={galleries}
 				keyExtractor={keyExtractor}

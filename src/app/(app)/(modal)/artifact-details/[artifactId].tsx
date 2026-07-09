@@ -7,7 +7,7 @@ import { SelectedArtifact } from "@/components/selected-artifact-stack";
 import EmptyState from "@/components/ui/empty-state";
 import ScrollView from "@/components/ui/scrollview";
 import { api } from "~/convex/_generated/api";
-import { Id } from "~/convex/_generated/dataModel";
+import type { Id } from "~/convex/_generated/dataModel";
 
 export default function ArtifactDetailsModal() {
 	const { artifactId } = useLocalSearchParams<{ artifactId: string }>();
@@ -51,7 +51,7 @@ export default function ArtifactDetailsModal() {
 				</Skeleton>
 
 				{/* Tags row */}
-				<View className="flex-row gap-2 flex-wrap">
+				<View className="flex-row flex-wrap gap-2">
 					{isLoading ? (
 						<>
 							<Skeleton className="h-6 w-16 rounded-full" />
@@ -60,8 +60,8 @@ export default function ArtifactDetailsModal() {
 						</>
 					) : (
 						artifact?.tags?.map((tag) => (
-							<View key={tag} className="bg-surface px-3 py-1 rounded-full">
-								<Typography.Paragraph className="text-xs text-muted-foreground">
+							<View key={tag} className="rounded-full bg-surface px-3 py-1">
+								<Typography.Paragraph className="text-muted-foreground text-xs">
 									{tag}
 								</Typography.Paragraph>
 							</View>

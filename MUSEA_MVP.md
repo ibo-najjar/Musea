@@ -70,8 +70,6 @@ All Week 1 security/backend work and most of Week 2 features are now done:
 
 | Feature | Status |
 |---|---|
-| Enrich prompt engineering | Functional but thin; text-only artifacts never enriched |
-| Add media from device | `add.tsx` is URL/text only — no photo/video picker |
 | Error handling & toasts | No toast lib, no error boundary; ad-hoc inline errors |
 | App Store prep | `eas.json` not store-configured; no `PrivacyInfo.xcprivacy`; permission strings unaudited |
 
@@ -90,28 +88,24 @@ Client-side title filter over the already-loaded `listUserGalleries` results (no
 - [x] "Auto-generated" footer gates on `filteredAuto.length > 0` (header auto-hides when no auto matches); `EmptyState` via `ListEmptyComponent` (guarded by `filteredAuto.length === 0`) when nothing matches
 - [ ] Verify on simulator: typing filters both manual grid and auto section live; clearing restores full list
 
-### 2. Enrich prompt engineering
+### 2. Enrich prompt engineering ✅ DONE
 **File:** `convex/ai.ts`
 
-Current prompt is a single short system line and never runs for text-only artifacts (`createArtifact` only schedules enrichment when `!isTextOnly`).
+- [x] Strengthened system prompt: per-field rules, demands specificity, lowercase 1-2 word tags, biases `galleryTopic` toward the fixed list
+- [x] User message includes `text` content for quote artifacts and labels the strongest signal (weak title → URL path/image; strong title → keep/refine)
+- [x] Text-only enrichment implemented as (a): new `embedTextArtifact` internal action embeds the quote as-is (no LLM rewrite) so it's searchable; `createArtifact` schedules it whenever `isTextOnly` and enrichment isn't scheduled
+- [x] Existing `try/catch` → `status:"failed"` fallback and rate-limit gate preserved
+- [ ] Verify on device: saving a URL yields a specific title + 2–5 clean tags + a sensible auto-gallery; saving a quote produces an embedding and appears in search
 
-- [ ] Strengthen the system prompt: define each field's intent, demand specificity (no generic "Interesting article" titles), enforce lowercase single/two-word tags, and bias `galleryTopic` toward the fixed list — only "Other" when nothing fits
-- [ ] Improve the user message: include `text` content for quote artifacts, and label which signal is strongest (URL path vs. OG title vs. image)
-- [ ] Decide + implement text-only enrichment: either (a) run a lighter enrichment (tags + topic + embedding, keep user's text as-is) so quotes get auto-filed and become searchable, or (b) explicitly document that quotes are intentionally not enriched. *Recommend (a)* — embeddings are what power vector search; unembedded quotes never surface in search.
-- [ ] Keep the existing `try/catch` → `status:"failed"` fallback and the rate-limit gate
-- [ ] Verify: saving a URL yields a specific title + 2–5 clean tags + a sensible auto-gallery; (if (a)) saving a quote produces tags and appears in search
+### 3. Add media from device (Add modal) ✅ DONE (pending device verify)
+**Files:** `src/app/(app)/(modal)/add.tsx`, `convex/files.ts`, `convex/artifacts.ts`
 
-### 3. Add media from device (Add modal)
-**Files:** `src/app/(app)/(modal)/add.tsx`, `convex/files.ts` (reuse existing upload), `convex/artifacts.ts`
-
-`expo-image-picker` + `expo-media-library` are already installed and used by profile/onboarding — reuse that upload path.
-
-- [ ] Add a "Choose photo or video" button (and optional camera) above/below the URL field; use `ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images','videos'] })`
-- [ ] Upload the picked asset to Convex file storage (reuse the avatar upload flow in `profile.tsx` / `convex/files.ts` — `generateUploadUrl` → POST → store URL)
-- [ ] Show a local preview before save (reuse the existing preview block)
-- [ ] On save: call `createArtifact` with `image` (photo) or `videoUrl` (video); these are media artifacts, so **no AI enrichment** is scheduled (matches current text-only behavior) — confirm `createArtifact`'s `willEnrich` logic still skips them (it only enriches when `sourceUrl` is set)
-- [ ] Audit `app.json` for `NSPhotoLibraryUsageDescription` / `NSCameraUsageDescription` purpose strings (ties into App Store prep below)
-- [ ] Verify: pick image → preview → save → appears in Discover grid; pick video → inline video card plays
+- [x] "Photo/Video" (library) and "Camera" buttons above the URL field; `ImagePicker.launchImageLibraryAsync`/`launchCameraAsync` with `mediaTypes: ["images","videos"]`
+- [x] Picked asset uploaded to Convex file storage (`generateUploadUrl` → POST → `files.saveFile` → `files.getUrl` to resolve the storage URL)
+- [x] Local preview before save (image `<Image>` or `VideoView`/`useVideoPlayer` for video), with a Remove action
+- [x] On save: `createArtifact` called with `image` or `videoUrl`. Decision: media artifacts **do** get AI enrichment — `willEnrich` is keyed off `isTextOnly` (not `sourceUrl`), so picked photos already flow through `enrichArtifact`'s existing vision path (title/tags/embedding from the image); videos enrich off filename/title only (no frame extraction)
+- [x] `app.json` already has `photosPermission` (expo-image-picker) and `cameraPermission`/`microphonePermission` (expo-camera) purpose strings configured
+- [ ] Verify on simulator/device: pick image → preview → save → appears in Discover grid enriched; pick video → inline video card plays; camera capture round-trips the same way
 
 ### 4. Error handling & toasts (was Day 11–12)
 **Files:** `src/app/_layout.tsx`, new `src/lib/toast.ts`, affected modals
@@ -385,113 +379,27 @@ UI (discover/index.tsx):
 
 ---
 
-## New Feature: Smart Auto-Organization v2
+## Smart Auto-Organization v3 — LLM-driven filing ✅ DONE
 
-Replace the fixed-topic auto-filing with embedding-based filing into the user's own galleries, plus cluster-based "Suggested" galleries.
+Replaced the embedding-centroid filing + clustering pipeline (v2, never shipped working — thresholds were too conservative and clustering needed 4+ items before anything visible happened) with a single LLM decision at enrichment time.
 
-### Why
+### Why v2 didn't work
+A save was matched against gallery *title embeddings* with a strict cosine threshold (0.82 + 0.03 margin) — short titles rarely cleared it, so nothing ever filed, and "Suggested" cluster galleries needed 4+ related unsorted items before appearing at all.
 
-Musea promises *"ONE TAP. AUTO-ORGANIZED. Musea puts it in the right place."* Today it doesn't deliver. A URL is enriched by gpt-4o-mini, which picks **one** `galleryTopic` from a fixed 17-word list (`convex/ai.ts:44-48`); then `findOrCreateAutoGallery` files it into an `isAuto` gallery by **exact case-insensitive title match** (`convex/galleries.ts:123-167`). The computed embedding is used **only** for search, never for organizing. Consequences:
+### v3 design
+- **gpt-4o-mini picks the gallery.** During enrichment (`convex/ai.ts` `autoFile`), the model sees the user's existing galleries (title, description, a few sample item titles) and either picks one by index or proposes a new 1–3 word Title Case name.
+- **Every save lands somewhere.** No "stays unsorted" state — confident match or brand-new `isAuto` gallery, always undoable via the "Filed in ___ · Undo" toast.
+- **Per-gallery opt-out.** `gallery.autoFileDisabled` (toggle in create/edit gallery forms) excludes a gallery from the LLM's candidate list.
+- **Clustering retired.** New galleries are created directly by the LLM call instead of waiting for enough unsorted items to accumulate; `suggested`/`dismissed`/`clusterDismissed` fields and `galleryVectors` centroid table are gone. Embeddings (`text-embedding-3-small`) remain solely for vector search.
 
-- **The AI is invisible** — the title silently rewrites and the item silently appears in an auto-gallery; the only signal anywhere is a generic "Processing…" chip.
-- **Galleries the user creates are never auto-filled** — auto-filing only matches `isAuto:true`, so a hand-made gallery gets nothing, even though the create-gallery copy promises "this helps us auto-sort items for you."
-- **Duplicate buckets** — exact-string matching makes "Tech" vs "Technology" two galleries.
-- **1-item gallery sprawl** — the first save of a topic instantly mints a gallery.
-
-The redesign (3 product decisions):
-1. **File into *your* galleries by meaning** — match new saves to existing galleries via embedding similarity; retire the fixed topic list. Confident match → file **silently** (undoable toast). No good match → leave in library, **no prompt, zero extra taps**.
-2. **New galleries emerge from clusters, shown inline as "Suggested" galleries** in the Galleries grid (not banners/notifications) — user Approves or Dismisses in place.
-3. One unified gallery pool; the gallery you name *is* the taxonomy the AI works within.
-
-### A. Schema
-**File:** `convex/schema.ts`
-
-- [ ] `gallery` table: add `centroid: v.optional(v.array(v.float64()))` — running mean of member artifact embeddings (1536 dims)
-- [ ] `gallery` table: add `itemCount: v.optional(v.number())` — member count, for incremental centroid updates
-- [ ] `gallery` table: add `suggested: v.optional(v.boolean())` — provisional cluster gallery awaiting user Approve/Dismiss
-- [ ] `artificats` table: add `clusterDismissed: v.optional(v.boolean())` — item was in a dismissed suggestion; exclude from re-clustering
-- [ ] Keep `isAuto` (means "AI-born") and `dismissed`; **no table rename** (respect the `artificats` typo rule)
-
-### B. Enrichment: stop picking a topic bucket
-**File:** `convex/ai.ts`
-
-- [ ] Remove `galleryTopic` from `enrichSchema` (keep `title`/`summary`/`tags`); update the system prompt to drop bucket guidance
-- [ ] After the embedding is computed and the artifact patched to `ready`, replace the `findOrCreateAutoGallery` call with `internal.galleries.fileArtifactByEmbedding({ userId, artificatId, embedding })`
-- [ ] After filing, schedule `internal.galleries.maybeClusterUnsorted({ userId })` (cluster check for suggested galleries)
-
-### C. Embedding-based filing into existing galleries
-**File:** `convex/galleries.ts` (new `fileArtifactByEmbedding` internalMutation)
-
-- [ ] Load the user's galleries (`by_user`, `.take(100)`); consider only galleries with a `centroid` and `suggested !== true` and `dismissed !== true`
-- [ ] Compute cosine similarity between the artifact embedding and each gallery `centroid`; pick the best
-- [ ] If `bestSim >= MATCH_THRESHOLD` (start `0.82`, tunable): insert the `galleryArtifacts` link (dedup-guarded like today) and call the centroid updater. Else: do nothing — the item stays unsorted in the library
-- [ ] Add `updateGalleryCentroid(galleryId, addedEmbedding)` helper: `centroid = (centroid*itemCount + emb) / (itemCount+1)`, `itemCount++`. Call it wherever `galleryArtifacts` rows are added/removed (`convex/galleryArtifacts.ts` add/remove/set paths too) so manual moves keep centroids honest
-- [ ] Backfill note: existing galleries have no `centroid`; on first membership change they start accumulating. (Optional one-off: a `recomputeCentroid` internal action over current members.)
-
-```
-fileArtifactByEmbedding(userId, artificatId, emb):
-  galleries = by_user.take(100).filter(g => g.centroid && !g.suggested && !g.dismissed)
-  best = argmax_g cosine(emb, g.centroid)
-  if best && cosine(emb, best.centroid) >= MATCH_THRESHOLD:
-      link artifact→best (if not already linked)
-      updateGalleryCentroid(best, emb)
-  // else: leave unsorted → candidate for clustering
-```
-
-### D. Cluster-based Suggested galleries
-**File:** `convex/galleries.ts` (new `maybeClusterUnsorted` internalMutation/action)
-
-- [ ] Gather the user's **unsorted** artifacts: `status:"ready"`, has `embedding`, not in any `galleryArtifacts` row, and not flagged `clusterDismissed`
-- [ ] Greedy cluster: pick a seed, group all unsorted items with `cosine >= CLUSTER_THRESHOLD` (start `0.80`) to it; if a group has `>= MIN_CLUSTER` items (start `4`), it's a cluster. Skip items already covered by an existing `suggested` gallery
-- [ ] Name the cluster with a small `generateText` call over the members' titles+tags (max ~24 chars); fall back to the most common tag
-- [ ] Create a `gallery` with `{ isAuto:true, suggested:true, title, centroid, itemCount }` and link the clustered artifacts
-- [ ] Keep it cheap: cap work (e.g. only run when unsorted count grew; only form one new cluster per call)
-
-```
-maybeClusterUnsorted(userId):
-  unsorted = readyEmbedded artifacts with no gallery link and !clusterDismissed
-  for seed in unsorted (not yet clustered):
-     group = [x in unsorted : cosine(seed.emb, x.emb) >= CLUSTER_THRESHOLD]
-     if len(group) >= MIN_CLUSTER:
-        name = summarizeName(group)      // small LLM call, editable later
-        g = insert gallery {isAuto:true, suggested:true, title:name, centroid:mean(group.emb), itemCount:len(group)}
-        link each item → g
-        break   // one suggestion per run
-```
-
-### E. Approve / Dismiss suggested galleries
-**File:** `convex/galleries.ts`
-
-- [ ] `approveGallery(galleryId)`: owner-guarded; set `suggested:false` (stays `isAuto:true`, becomes a real gallery, keeps items + centroid)
-- [ ] `dismissSuggestedGallery(galleryId)`: owner-guarded; delete the gallery + its `galleryArtifacts` links (items return to library), and set `clusterDismissed:true` on those artifacts so they aren't immediately re-clustered
-- [ ] Retire `findOrCreateAutoGallery` (dead once B/C land); keep `promoteGallery`/`dismissAutoGallery` only if still referenced, else remove
-
-### F. Galleries screen — show Suggested galleries inline
-**Files:** `src/app/(app)/(tabs)/(galleries)/index.tsx`, `src/components/gallery-card.tsx`
-
-- [ ] `listUserGalleries` already returns non-dismissed galleries incl. `suggested:true`. In the Galleries list, render suggested galleries **inline in the grid** (not the current separate "Auto-generated" footer), sorted to the top, each with a distinct **"Suggested"** treatment (badge + softer/dashed styling)
-- [ ] `gallery-card.tsx`: when `gallery.suggested`, show the "Suggested" badge and a context menu with **Approve** (`approveGallery`) and **Dismiss** (`dismissSuggestedGallery`); wire the currently-dead manual Edit/Delete actions while here
-- [ ] Remove the permanent auto/manual split UI now that suggestions are a transient state, not a second-class category
-
-### G. "Filed in ___ · Undo" feedback (no extra tap on save)
-**Files:** `src/app/(app)/(modal)/add.tsx` (or a small hook), `src/lib/toast.ts` (from Remaining Work #4)
-
-- [ ] Save flow is unchanged (one tap, sheet closes). After save, keep the new `artificatId` and subscribe to its gallery membership (reactive query). When it first gains a gallery, show a toast **"Filed in {gallery} · Undo"**; Undo calls `setGalleriesForArtifact` to remove it
-- [ ] Surface the currently-invisible states: render `status:"failed"` (e.g. "Couldn't read this — Retry") and improve the "Processing…" chip copy (`mansory-card.tsx`)
-
-### H. Copy fix
-**Files:** `create-gallery.tsx`, `edit-gallery/[galleryId].tsx`
-
-- [ ] The "naming a gallery helps us auto-sort items for you" copy is now **true** (centroid filing targets user galleries) — keep it; ensure onboarding copy still matches behavior
-
-### Tunables (locked defaults, adjust after dogfood)
-`MATCH_THRESHOLD=0.82` · `CLUSTER_THRESHOLD=0.80` · `MIN_CLUSTER=4` · one cluster formed per run. Start conservative on `MATCH_THRESHOLD` so wrong-filing is rare (Undo is the only in-the-moment correction).
+**Files:** `convex/organize.ts` (`getGalleriesForFiling`, `autoFileArtifact`, `undoAutoFile`), `convex/ai.ts` (`autoFile` helper called from both `enrichArtifact` and `embedTextArtifact`), `convex/galleries.ts` (`autoFileDisabled` on create/update), `src/components/gallery-card.tsx` + gallery detail screen (dropped Suggested/legacy-auto menu split; Edit/Delete now available on all galleries), create/edit gallery forms (Auto-file new saves switch).
 
 ### Verify (end-to-end, via `npx convex dev` + app)
-- [ ] Save 3–4 clearly-related URLs into an existing gallery's topic → later saves land in that **existing** gallery (silent), confirmed by the "Filed in ___" toast; Undo removes it
-- [ ] Save an item unlike anything saved → stays in library unsorted, no gallery, no prompt
-- [ ] Save enough unsorted-but-related items (≥ `MIN_CLUSTER`) → a **Suggested** gallery appears inline in the Galleries grid with a sensible name
-- [ ] Approve → becomes a normal gallery; Dismiss → gallery + links gone, items return to library and don't immediately re-suggest
+- [ ] Save a URL matching an existing gallery's theme → files into it silently, confirmed by "Filed in ___ · Undo" toast; Undo removes the link
+- [ ] Save an off-topic URL → a new `isAuto` gallery is created + toast fires; Undo removes the link and deletes the fresh gallery
+- [ ] Save a quote/note → files the same way
+- [ ] Toggle "Auto-file new saves" off on a gallery → future related saves skip it
+- [ ] Vector search still returns results (embeddings untouched)
 - [ ] `npx biome check .` exits 0
 
 ---

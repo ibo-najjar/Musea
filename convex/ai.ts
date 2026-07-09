@@ -5,7 +5,111 @@ import { embed, generateObject } from "ai";
 import { v } from "convex/values";
 import { z } from "zod";
 import { internal } from "./_generated/api";
-import { internalAction } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { type ActionCtx, internalAction } from "./_generated/server";
+import { scrapeMetadata } from "./preview";
+
+// Ask the LLM to file `artificatId` into one of the user's galleries, or name a
+// new one. Every save lands somewhere unless the user opted every eligible
+// gallery out of auto-filing. Filing failures never fail enrichment.
+async function autoFile(
+	ctx: ActionCtx,
+	userId: string,
+	artificatId: Id<"artificats">,
+	itemText: string,
+) {
+	try {
+		const galleries = await ctx.runQuery(
+			internal.organize.getGalleriesForFiling,
+			{
+				userId,
+				artificatId,
+			},
+		);
+
+		let galleryIndex: number | null = null;
+		let newGalleryName: string | null = null;
+
+		if (galleries.length > 0) {
+			const galleryList = galleries
+				.map((g, i) => {
+					const desc = g.description ? ` (${g.description})` : "";
+					const samples = g.sampleTitles.length
+						? ` — e.g. ${g.sampleTitles.map((t) => `"${t}"`).join(", ")}`
+						: "";
+					return `${i}. "${g.title}"${desc}${samples}`;
+				})
+				.join("\n");
+
+			const { object } = await generateObject({
+				model: openai("gpt-4o-mini"),
+				schema: filingSchema,
+				system: [
+					"You file a saved item into the user's galleries (collections).",
+					"Pick the index of an existing gallery ONLY when the item clearly fits its theme.",
+					"Otherwise propose a NEW gallery name: 1-3 words, Title Case, max 24 characters,",
+					"broad enough to hold future similar saves, and NOT a synonym/variant of an",
+					"existing gallery name (if it would be, pick that existing gallery instead).",
+				].join(" "),
+				messages: [
+					{
+						role: "user",
+						content: [
+							`Item: ${itemText}`,
+							"",
+							"The user's galleries:",
+							galleryList,
+						].join("\n"),
+					},
+				],
+			});
+			galleryIndex = object.galleryIndex;
+			newGalleryName = object.newGalleryName;
+		} else {
+			const { object } = await generateObject({
+				model: openai("gpt-4o-mini"),
+				schema: filingSchema.pick({ newGalleryName: true }),
+				system:
+					"Propose a NEW gallery (collection) name for this saved item: 1-3 words, Title Case, max 24 characters.",
+				messages: [{ role: "user", content: `Item: ${itemText}` }],
+			});
+			newGalleryName = object.newGalleryName;
+		}
+
+		const resolvedGalleryId =
+			galleryIndex !== null && galleries[galleryIndex]
+				? galleries[galleryIndex].galleryId
+				: undefined;
+
+		await ctx.runMutation(internal.organize.autoFileArtifact, {
+			userId,
+			artificatId,
+			galleryId: resolvedGalleryId,
+			newGalleryTitle: resolvedGalleryId
+				? undefined
+				: (newGalleryName ?? undefined),
+		});
+	} catch (err) {
+		console.error("Auto-filing failed for", artificatId, err);
+	}
+}
+
+const filingSchema = z.object({
+	galleryIndex: z
+		.number()
+		.int()
+		.nullable()
+		.describe(
+			"Index of the existing gallery this item clearly belongs in, or null.",
+		),
+	newGalleryName: z
+		.string()
+		.max(24)
+		.nullable()
+		.describe(
+			"If galleryIndex is null: a 1-3 word Title Case name for a new gallery. Never a near-duplicate of an existing name.",
+		),
+});
 
 // CDNs that block third-party image fetches (hotlink protection)
 const BLOCKED_IMAGE_HOSTS = [
@@ -25,27 +129,6 @@ function isPubliclyFetchableImage(url: string): boolean {
 	}
 }
 
-const GALLERY_TOPICS = [
-	"Design",
-	"Travel",
-	"Tech",
-	"Food",
-	"Art",
-	"Science",
-	"Business",
-	"Entertainment",
-	"Health",
-	"Fashion",
-	"Architecture",
-	"Photography",
-	"Music",
-	"Film",
-	"Gaming",
-	"Nature",
-	"Tattoos",
-	"Other",
-] as const;
-
 const enrichSchema = z.object({
 	title: z
 		.string()
@@ -55,7 +138,9 @@ const enrichSchema = z.object({
 	summary: z
 		.string()
 		.describe(
-			"1-2 sentences on what the content actually is/covers. Concrete, not promotional.",
+			"A Markdown-formatted description of what the content actually is/covers. Concrete, not promotional. " +
+				"Start with a one-line intro sentence, then 2-4 bullet points using '- ', each led by a relevant emoji. " +
+				"No headings, no bold/italics, keep it scannable and no more than ~5 lines total.",
 		),
 	tags: z
 		.array(z.string())
@@ -64,12 +149,17 @@ const enrichSchema = z.object({
 		.describe(
 			"2-5 lowercase tags, each one or two words (e.g. 'machine learning', 'recipes'). No '#', no sentences, no duplicates.",
 		),
-	galleryTopic: z
-		.enum(GALLERY_TOPICS)
-		.describe(
-			"The single best-fitting topic. Use 'Other' ONLY when none of the named topics fit.",
-		),
 });
+
+// Strip Markdown syntax + emoji so the summary embeds cleanly for vector search.
+const stripMarkdown = (s: string) =>
+	s
+		.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [text](url) -> text
+		.replace(/[#>*_`~]|(^|\s)-\s/gm, " ") // markdown markers / bullet dashes
+		.replace(/\p{Extended_Pictographic}/gu, "") // emoji
+		.replace(/\p{Default_Ignorable_Code_Point}/gu, "") // ZWJ / variation selectors
+		.replace(/\s+/g, " ")
+		.trim();
 
 export const enrichArtifact = internalAction({
 	args: { artificatId: v.id("artificats") },
@@ -81,14 +171,30 @@ export const enrichArtifact = internalAction({
 		if (!artifact) return;
 
 		try {
+			// The server is the source of truth for OG metadata: scrape here
+			// rather than trusting whatever (if anything) the client passed in,
+			// so an early save or a failed client-side preview can't leave the
+			// artifact permanently empty.
+			let title = artifact.title;
+			let description = artifact.description;
+			let image = artifact.image;
+			let videoUrl = artifact.videoUrl;
+			if (artifact.source) {
+				const scraped = await scrapeMetadata(artifact.source).catch(() => null);
+				if (scraped) {
+					title = scraped.title;
+					description = scraped.description ?? description;
+					image = scraped.image ?? image;
+					videoUrl = scraped.videoUrl ?? videoUrl;
+				}
+			}
+
 			const titleIsWeak =
-				!artifact.title ||
-				artifact.title === artifact.source ||
-				artifact.title.toLowerCase() === "untitled";
+				!title ||
+				title === artifact.source ||
+				title.toLowerCase() === "untitled";
 			const fetchableImage =
-				artifact.image && isPubliclyFetchableImage(artifact.image)
-					? artifact.image
-					: undefined;
+				image && isPubliclyFetchableImage(image) ? image : undefined;
 			const hasImage = !!fetchableImage;
 			const strongestSignal = titleIsWeak
 				? hasImage
@@ -105,10 +211,10 @@ export const enrichArtifact = internalAction({
 							text: [
 								"Analyze this saved web content and generate metadata.",
 								`URL: ${artifact.source ?? "unknown"}`,
-								`Current title: ${artifact.title}`,
-								`Current description: ${artifact.description ?? "none"}`,
-								...(artifact.text
-									? [`Saved text/quote: ${artifact.text}`]
+								`Current title: ${title}`,
+								`Current description: ${description ?? "none"}`,
+								...(artifact.description
+									? [`Saved text/quote: ${artifact.description}`]
 									: []),
 								`Hint: ${strongestSignal}`,
 							].join("\n"),
@@ -130,15 +236,17 @@ export const enrichArtifact = internalAction({
 					"(1) Titles name the real subject — reject generic filler.",
 					"(2) If the existing title/description are already specific, keep or lightly refine them; only rewrite when weak or missing.",
 					"(3) Tags are lowercase, 1-2 words each, 2-5 total.",
-					'(4) Pick the single closest galleryTopic from the allowed list; use "Other" only when nothing fits.',
-					"(5) When metadata is thin, infer from the URL path segments and the image.",
+					"(4) When metadata is thin, infer from the URL path segments and the image.",
+					"(5) The summary is Markdown with emojis: a one-line intro, then 2-4 '- ' bullets, each starting with a fitting emoji. No headings, no bold/italics; keep it short and specific.",
 				].join("\n"),
 				messages,
 			});
 
-			const textToEmbed = [object.title, object.summary, ...object.tags].join(
-				" ",
-			);
+			const textToEmbed = [
+				object.title,
+				stripMarkdown(object.summary),
+				...object.tags,
+			].join(" ");
 			const { embedding } = await embed({
 				model: openai.embedding("text-embedding-3-small"),
 				value: textToEmbed,
@@ -149,23 +257,51 @@ export const enrichArtifact = internalAction({
 				update: {
 					title: object.title,
 					description: object.summary,
+					image,
+					videoUrl,
 					tags: object.tags,
 					embedding,
 					status: "ready",
 				},
 			});
 
-			await ctx.runMutation(internal.galleries.findOrCreateAutoGallery, {
-				userId: artifact.userId,
-				topic: object.galleryTopic,
-				artificatId,
-			});
+			await autoFile(ctx, artifact.userId, artificatId, textToEmbed);
 		} catch (err) {
 			console.error("AI enrichment failed for", artificatId, err);
 			await ctx.runMutation(internal.artifacts.patchArtifactInternal, {
 				artificatId,
 				update: { status: "failed" },
 			});
+		}
+	},
+});
+
+// Scrape-only path for URL artifacts that skipped LLM enrichment (over the
+// daily quota): fills in title/description/image so the artifact isn't left
+// empty, without spending an OpenAI call.
+export const scrapeArtifactMetadata = internalAction({
+	args: { artificatId: v.id("artificats") },
+	handler: async (ctx, { artificatId }) => {
+		const artifact = await ctx.runQuery(
+			internal.artifacts.getArtifactByIdInternal,
+			{ artificatId },
+		);
+		if (!artifact?.source) return;
+
+		try {
+			const scraped = await scrapeMetadata(artifact.source);
+			await ctx.runMutation(internal.artifacts.patchArtifactInternal, {
+				artificatId,
+				update: {
+					title: scraped.title,
+					description: scraped.description,
+					image: scraped.image,
+					videoUrl: scraped.videoUrl,
+					status: "ready",
+				},
+			});
+		} catch (err) {
+			console.error("Metadata scrape failed for", artificatId, err);
 		}
 	},
 });
@@ -179,17 +315,20 @@ export const embedTextArtifact = internalAction({
 			internal.artifacts.getArtifactByIdInternal,
 			{ artificatId },
 		);
-		if (!artifact?.text) return;
+		if (!artifact?.description) return;
 
 		try {
 			const { embedding } = await embed({
 				model: openai.embedding("text-embedding-3-small"),
-				value: artifact.text,
+				value: artifact.title + " " + artifact.description,
 			});
 			await ctx.runMutation(internal.artifacts.patchArtifactInternal, {
 				artificatId,
 				update: { embedding },
 			});
+
+			// Quotes/notes auto-file just like URLs.
+			await autoFile(ctx, artifact.userId, artificatId, artifact.description);
 		} catch (err) {
 			// Leave status "ready" — the quote is fully usable, just not yet searchable.
 			console.error("Text embedding failed for", artificatId, err);

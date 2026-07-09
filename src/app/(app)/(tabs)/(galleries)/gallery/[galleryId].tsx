@@ -33,7 +33,6 @@ export default function GalleryScreen() {
 	});
 	const deleteGallery = useMutation(api.galleries.deleteGallery);
 	const promoteGallery = useMutation(api.galleries.promoteGallery);
-	const dismissAutoGallery = useMutation(api.galleries.dismissAutoGallery);
 	const removeArtifactsFromGallery = useMutation(
 		api.galleryArtifacts.removeArtifactsFromGallery,
 	);
@@ -109,24 +108,6 @@ export default function GalleryScreen() {
 	const onPromoteGallery = useCallback(async () => {
 		await promoteGallery({ galleryId: galleryId as Id<"gallery"> });
 	}, [promoteGallery, galleryId]);
-
-	const onDismissGallery = useCallback(() => {
-		Alert.alert(
-			"Dismiss auto-gallery",
-			"Hide this auto-generated gallery and stop auto-filing this topic? The saved items will stay in your library.",
-			[
-				{ text: "Cancel", style: "cancel" },
-				{
-					text: "Dismiss",
-					style: "destructive",
-					onPress: async () => {
-						await dismissAutoGallery({ galleryId: galleryId as Id<"gallery"> });
-						router.back();
-					},
-				},
-			],
-		);
-	}, [dismissAutoGallery, galleryId, router]);
 
 	const {
 		results: artifacts,
@@ -205,14 +186,6 @@ export default function GalleryScreen() {
 					>
 						Add to my galleries
 					</Stack.Toolbar.MenuAction>
-					<Stack.Toolbar.MenuAction
-						icon={"xmark"}
-						destructive
-						onPress={onDismissGallery}
-						hidden={!gallery.isAuto}
-					>
-						Dismiss
-					</Stack.Toolbar.MenuAction>
 
 					<Stack.Toolbar.MenuAction
 						icon={"square.and.pencil"}
@@ -222,7 +195,6 @@ export default function GalleryScreen() {
 								params: { galleryId },
 							})
 						}
-						hidden={gallery.isAuto}
 					>
 						Edit Gallery
 					</Stack.Toolbar.MenuAction>
@@ -230,7 +202,6 @@ export default function GalleryScreen() {
 						icon={"trash"}
 						destructive
 						onPress={onDeleteGallery}
-						hidden={gallery.isAuto}
 					>
 						Delete Gallery
 					</Stack.Toolbar.MenuAction>

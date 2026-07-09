@@ -7,15 +7,20 @@ export const generateUploadUrl = mutation(async (ctx) => {
 	return await ctx.storage.generateUploadUrl();
 });
 
-// Mutation to save custom metadata for the file
+// Save custom metadata for the file and resolve it to a fetchable URL in one
+// round-trip, instead of a separate insert + getUrl call.
 export const saveFile = mutation({
-	args: { storageId: v.id("_storage"), userId: v.string() },
+	args: {
+		storageId: v.id("_storage"),
+		userId: v.string(),
+		format: v.optional(v.string()),
+	},
 	handler: async (ctx, args) => {
-		const fileId = await ctx.db.insert("files", {
+		await ctx.db.insert("files", {
 			storageId: args.storageId,
 			userId: args.userId,
-			format: "image",
+			format: args.format ?? "image",
 		});
-		return fileId;
+		return await ctx.storage.getUrl(args.storageId);
 	},
 });

@@ -1,18 +1,30 @@
 import { v } from "convex/values";
-import { api, internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { api } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
+import { internalQuery, mutation, query } from "./_generated/server";
 
 export const createGallery = mutation({
-	args: { title: v.string() },
-	handler: async (ctx, { title }) => {
+	args: {
+		title: v.string(),
+		autoFileDisabled: v.optional(v.boolean()),
+	},
+	handler: async (ctx, { title, autoFileDisabled }): Promise<Id<"gallery">> => {
 		const user = await ctx.runQuery(api.auth.getCurrentUser);
 		if (!user) throw new Error("Must be logged in to create a gallery");
 
-		await ctx.db.insert("gallery", {
+		return await ctx.db.insert("gallery", {
 			title,
+			autoFileDisabled,
 			userId: user._id,
 		});
+	},
+});
+
+// Internal read for the enrichment/seeding actions (no auth — internal only).
+export const getGalleryInternal = internalQuery({
+	args: { galleryId: v.id("gallery") },
+	handler: async (ctx, { galleryId }): Promise<Doc<"gallery"> | null> => {
+		return await ctx.db.get(galleryId);
 	},
 });
 
@@ -41,7 +53,7 @@ export const listUserGalleries = query({
 			.query("gallery")
 			.withIndex("by_user", (q) => q.eq("userId", user._id))
 			.take(100);
-		return galleries.filter((g) => !g.dismissed);
+		return galleries;
 	},
 });
 
@@ -50,8 +62,9 @@ export const updateGallery = mutation({
 		galleryId: v.id("gallery"),
 		title: v.optional(v.string()),
 		description: v.optional(v.string()),
+		autoFileDisabled: v.optional(v.boolean()),
 	},
-	handler: async (ctx, { galleryId, title, description }) => {
+	handler: async (ctx, { galleryId, title, description, autoFileDisabled }) => {
 		const user = await ctx.runQuery(api.auth.getCurrentUser);
 		if (!user) throw new Error("Must be logged in");
 
@@ -63,6 +76,8 @@ export const updateGallery = mutation({
 		const update: Partial<Doc<"gallery">> = {};
 		if (title !== undefined) update.title = title;
 		if (description !== undefined) update.description = description;
+		if (autoFileDisabled !== undefined)
+			update.autoFileDisabled = autoFileDisabled;
 		await ctx.db.patch(galleryId, update);
 	},
 });
@@ -89,7 +104,7 @@ export const deleteGallery = mutation({
 	},
 });
 
-// Convert an auto-generated gallery into a user-owned gallery
+// Convert an auto-generated gallery into a user-owned gallery (clears the sparkle badge)
 export const promoteGallery = mutation({
 	args: { galleryId: v.id("gallery") },
 	handler: async (ctx, { galleryId }) => {
@@ -101,67 +116,5 @@ export const promoteGallery = mutation({
 			throw new Error("Not found");
 		}
 		await ctx.db.patch(galleryId, { isAuto: false });
-	},
-});
-
-// Dismiss an auto-generated gallery: hide it and stop future auto-filing of its topic
-export const dismissAutoGallery = mutation({
-	args: { galleryId: v.id("gallery") },
-	handler: async (ctx, { galleryId }) => {
-		const user = await ctx.runQuery(api.auth.getCurrentUser);
-		if (!user) throw new Error("Must be logged in");
-
-		const gallery = await ctx.db.get(galleryId);
-		if (!gallery || gallery.userId !== user._id) {
-			throw new Error("Not found");
-		}
-		await ctx.db.patch(galleryId, { dismissed: true });
-	},
-});
-
-// Called by the AI enrichment action to auto-assign an artifact to a topic gallery
-export const findOrCreateAutoGallery = internalMutation({
-	args: {
-		userId: v.string(),
-		topic: v.string(),
-		artificatId: v.id("artificats"),
-	},
-	handler: async (ctx, { userId, topic, artificatId }) => {
-		// Find existing auto gallery with this topic for this user
-		const galleries = await ctx.db
-			.query("gallery")
-			.withIndex("by_user", (q) => q.eq("userId", userId))
-			.collect();
-
-		let gallery = galleries.find(
-			(g) => g.isAuto && g.title.toLowerCase() === topic.toLowerCase(),
-		);
-
-		// User dismissed this topic — don't auto-file or recreate the gallery
-		if (gallery?.dismissed) return;
-
-		if (!gallery) {
-			const galleryId = await ctx.db.insert("gallery", {
-				title: topic,
-				userId,
-				isAuto: true,
-			});
-			gallery = (await ctx.db.get(galleryId))!;
-		}
-
-		// Only add if not already linked
-		const existing = await ctx.db
-			.query("galleryArtifacts")
-			.withIndex("by_artifact", (q) => q.eq("artificatId", artificatId))
-			.filter((q) => q.eq(q.field("galleryId"), gallery!._id))
-			.first();
-
-		if (!existing) {
-			await ctx.db.insert("galleryArtifacts", {
-				galleryId: gallery._id,
-				artificatId,
-				userId,
-			});
-		}
 	},
 });

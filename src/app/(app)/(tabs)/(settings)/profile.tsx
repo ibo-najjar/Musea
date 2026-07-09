@@ -114,20 +114,20 @@ export default function Profile() {
 				contentInsetAdjustmentBehavior="automatic"
 				contentContainerClassName="px-4"
 			>
-				<View className="justify-center items-center">
+				<View className="items-center justify-center">
 					<Button
 						isGlass
 						className="size-40 rounded-3xl"
 						onPress={handleEditImage}
 					>
-						<Avatar className="rounded-3xl size-40 bg-transparent">
+						<Avatar className="size-40 rounded-3xl bg-transparent">
 							<Avatar.Image
 								source={{
 									uri: session?.user.image || undefined,
 								}}
 							/>
 							<Avatar.Fallback>
-								<Text className="text-7xl font-bold text-foreground/30 leading-0">
+								<Text className="font-bold text-7xl text-foreground/30 leading-0">
 									{session?.user.name
 										? session.user.name
 												.split(" ")
@@ -162,7 +162,8 @@ export default function Profile() {
 							<InputGroup.Input
 								placeholder="Your Display Name"
 								variant="secondary"
-								className="bg-transparent outline-0 border-0"
+								className="border-0 bg-transparent outline-0"
+								style={{ textAlignVertical: "center", paddingVertical: 0 }}
 								value={displayName}
 								onChangeText={setDisplayName}
 							/>
@@ -176,7 +177,8 @@ export default function Profile() {
 							<InputGroup.Input
 								placeholder="username"
 								variant="secondary"
-								className="bg-transparent outline-0 border-0"
+								className="border-0 bg-transparent outline-0"
+								style={{ textAlignVertical: "center", paddingVertical: 0 }}
 								autoCapitalize="none"
 								autoCorrect={false}
 								value={username}

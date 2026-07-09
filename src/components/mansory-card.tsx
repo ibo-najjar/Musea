@@ -3,7 +3,7 @@ import { SymbolView } from "expo-symbols";
 import { Checkbox, Spinner, Typography } from "heroui-native";
 import { useState } from "react";
 import { Pressable, useWindowDimensions, View } from "react-native";
-import { Doc } from "~/convex/_generated/dataModel";
+import type { Doc } from "~/convex/_generated/dataModel";
 import { Button } from "./ui/button";
 import Image from "./ui/image";
 import { Text } from "./ui/text";
@@ -48,9 +48,10 @@ const MasonryCard = ({
 	const router = useRouter();
 
 	const isPending = item.status === "pending";
+	const isFailed = item.status === "failed";
 
 	return (
-		<View className="m-2 overflow-hidden rounded-2xl bg-surface">
+		<View className="m-2 overflow-hidden rounded-2xl ">
 			<Link
 				href={{
 					pathname: "/(app)/(modal)/artifact/[artifactId]",
@@ -58,25 +59,30 @@ const MasonryCard = ({
 						artifactId: item._id,
 						image: item.image,
 						title: item.title,
+						sourceType: item.sourceType,
 					},
 				}}
+				className="bg-surface"
 				asChild
 			>
 				<Link.Trigger>
 					<Link.AppleZoom>
 						<Pressable>
-							{item.text && !item.image ? (
+							{item.sourceType === "richtext" ? (
 								<View
-									className="w-full p-3 overflow-hidden"
-									style={{ maxHeight: 160, width: columnWidth }}
+									className="w-full overflow-hidden p-3"
+									style={{ width: columnWidth }}
 								>
-									<Typography
-										type={TEXT_SIZE_TYPE[item.textSize ?? "md"]}
-										weight={item.textWeight ?? "normal"}
-										numberOfLines={TEXT_SIZE_LINES[item.textSize ?? "md"]}
-									>
-										{item.text}
+									<Typography type={"h4"} weight={"semibold"} numberOfLines={2}>
+										{item.title}
 									</Typography>
+									<Typography.Paragraph
+										type="body-xs"
+										color="muted"
+										numberOfLines={12}
+									>
+										{item.description}
+									</Typography.Paragraph>
 								</View>
 							) : item.image ? (
 								<Image
@@ -84,6 +90,7 @@ const MasonryCard = ({
 									source={{ uri: item.image }}
 									style={{ height: imgHeight, width: columnWidth }}
 									contentFit="cover"
+									cachePolicy="memory-disk"
 									onLoad={(e) => {
 										const { width, height } = e.source;
 										if (width && height) {
@@ -99,7 +106,7 @@ const MasonryCard = ({
 							)}
 							{item.videoUrl && !isPending && (
 								<View className="absolute inset-0 items-center justify-center">
-									<View className="bg-black/50 rounded-full p-2">
+									<View className="rounded-full bg-black/50 p-2">
 										<SymbolView name="play.fill" size={24} tintColor="white" />
 									</View>
 								</View>
@@ -109,11 +116,28 @@ const MasonryCard = ({
 									size="sm"
 									isGlass
 									variant="ghost"
-									className="absolute bottom-2 left-2 h-7 px-2 gap-1 bg-surface/80 "
+									className="absolute bottom-2 left-2 h-7 gap-1 bg-surface/80 px-2"
 								>
 									<Spinner size="sm" />
-									<Text className="text-xs text-foreground/70">
-										Processing...
+									<Text className="text-foreground/70 text-xs">
+										Organizing...
+									</Text>
+								</Button>
+							)}
+							{isFailed && (
+								<Button
+									size="sm"
+									isGlass
+									variant="ghost"
+									className="absolute bottom-2 left-2 h-7 gap-1 bg-surface/80 px-2"
+								>
+									<SymbolView
+										name="exclamationmark.triangle.fill"
+										size={12}
+										tintColor="#f59e0b"
+									/>
+									<Text className="text-foreground/70 text-xs">
+										Couldn't process
 									</Text>
 								</Button>
 							)}

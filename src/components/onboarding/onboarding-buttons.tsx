@@ -128,13 +128,15 @@ export function OnboardingButtons({
 
 			<Animated.View
 				style={[
-					{ position: "absolute", top: 130, left: 32, right: 32, gap: 16 },
+					{ position: "absolute", top: 120, left: 32, right: 32 },
 					topBlockStyle,
 				]}
+				className={"gap-3"}
 			>
 				<Typography.Heading type="h2" weight="bold" className="text-center">
 					Welcome to Musea
 				</Typography.Heading>
+
 				<AppleAuthentication.AppleAuthenticationButton
 					buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
 					buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
@@ -142,7 +144,7 @@ export function OnboardingButtons({
 					style={{ width: "100%", height: 44 }}
 					onPress={signInWithApple}
 				/>
-				<Button onPress={signInWithGoogle} variant="secondary">
+				{/* <Button onPress={signInWithGoogle} variant="secondary" className="h-11">
 					<SourceIcon
 						svgPath={simpleIcons.siGoogle.path}
 						size={20}
@@ -151,6 +153,13 @@ export function OnboardingButtons({
 					<Text className="font-medium">
 						{googleLoading ? "Signing in…" : "Continue with Google"}
 					</Text>
+				</Button> */}
+				<Button
+					onPress={() => router.push("/(auth)/email-and-password")}
+					variant="secondary"
+					className="h-11"
+				>
+					<Text className="font-medium">Continue with email & password</Text>
 				</Button>
 			</Animated.View>
 		</View>

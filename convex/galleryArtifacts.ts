@@ -63,31 +63,59 @@ export const addArtifactToGallery = mutation({
 			.first();
 		if (existing) return existing._id;
 
-		return await ctx.db.insert("galleryArtifacts", {
+		const linkId = await ctx.db.insert("galleryArtifacts", {
 			galleryId: args.galleryId,
 			artificatId: args.artificatId,
 			userId,
 		});
+		return linkId;
 	},
 });
 
-// Get the first 3 saved artifacts for a gallery preview (oldest first)
-export const getGalleryPreview = query({
+// Resolve a window of the oldest links so a few orphaned/missing artifacts
+// don't blank the preview entirely.
+const PREVIEW_SCAN = 30;
+
+export type PreviewTileItem = {
+	image?: string;
+	title?: string;
+	description?: string;
+};
+
+export type GalleryCardData = {
+	items: PreviewTileItem[];
+	count: number;
+};
+
+// Single projected query for gallery cards: up to 3 preview tiles (oldest
+// saved first) plus the total save count, without shipping full artifact
+// docs (notably the embedding vector) over the wire.
+export const getGalleryCardData = query({
 	args: { galleryId: v.id("gallery") },
-	handler: async (ctx, args): Promise<Doc<"artificats">[]> => {
-		if (!(await getOwnedGallery(ctx, args.galleryId))) return [];
+	handler: async (ctx, args): Promise<GalleryCardData> => {
+		if (!(await getOwnedGallery(ctx, args.galleryId)))
+			return { items: [], count: 0 };
 
 		const links = await ctx.db
 			.query("galleryArtifacts")
 			.withIndex("by_gallery", (q) => q.eq("galleryId", args.galleryId))
 			.order("asc") // oldest saved first
-			.take(3);
+			.take(1000);
 
-		const artifacts = await Promise.all(
-			links.map((link) => ctx.db.get(link.artificatId)),
+		const resolved = await Promise.all(
+			links.slice(0, PREVIEW_SCAN).map((link) => ctx.db.get(link.artificatId)),
 		);
 
-		return artifacts.filter((a) => a !== null);
+		const items: PreviewTileItem[] = resolved
+			.filter((a): a is Doc<"artificats"> => a !== null)
+			.slice(0, 3)
+			.map((a) => ({
+				image: a.image,
+				title: a.title,
+				description: a.description,
+			}));
+
+		return { items, count: links.length };
 	},
 });
 
@@ -111,6 +139,7 @@ export const addArtifactsToGallery = mutation({
 		);
 
 		const insertedIds = [];
+		const insertedArtifactIds = [];
 
 		for (const artificatId of args.artificatIds) {
 			if (existingArtifactIds.has(artificatId)) continue;
@@ -121,6 +150,7 @@ export const addArtifactsToGallery = mutation({
 				userId,
 			});
 			insertedIds.push(id);
+			insertedArtifactIds.push(artificatId);
 		}
 
 		return insertedIds;
@@ -165,12 +195,11 @@ export const removeArtifactsFromGallery = mutation({
 			links.map((link) => [link.artificatId, link._id]),
 		);
 
-		await Promise.all(
-			args.artificatIds.map((artificatId) => {
-				const linkId = linkByArtifact.get(artificatId);
-				return linkId ? ctx.db.delete(linkId) : Promise.resolve();
-			}),
-		);
+		for (const artificatId of args.artificatIds) {
+			const linkId = linkByArtifact.get(artificatId);
+			if (!linkId) continue;
+			await ctx.db.delete(linkId);
+		}
 	},
 });
 
@@ -195,11 +224,12 @@ export const moveArtifactToGallery = mutation({
 			await ctx.db.delete(link._id);
 		}
 
-		return await ctx.db.insert("galleryArtifacts", {
+		const linkId = await ctx.db.insert("galleryArtifacts", {
 			galleryId: args.toGalleryId,
 			artificatId: args.artificatId,
 			userId,
 		});
+		return linkId;
 	},
 });
 
@@ -255,20 +285,6 @@ export const getGalleryArtifactIds = query({
 			.withIndex("by_gallery", (q) => q.eq("galleryId", args.galleryId))
 			.take(1000);
 		return links.map((link) => link.artificatId);
-	},
-});
-
-// Count how many artifacts are in a gallery
-export const countArtifactsInGallery = query({
-	args: { galleryId: v.id("gallery") },
-	handler: async (ctx, args): Promise<number> => {
-		if (!(await getOwnedGallery(ctx, args.galleryId))) return 0;
-
-		const links = await ctx.db
-			.query("galleryArtifacts")
-			.withIndex("by_gallery", (q) => q.eq("galleryId", args.galleryId))
-			.take(1000);
-		return links.length;
 	},
 });
 

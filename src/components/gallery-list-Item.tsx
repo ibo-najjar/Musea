@@ -1,10 +1,10 @@
 import { useQuery } from "convex/react";
-import { ControlField, Checkbox, Label } from "heroui-native";
-import { memo, useMemo } from "react";
+import { Checkbox, ControlField, cn, Label } from "heroui-native";
+import { memo } from "react";
 import { Text, View } from "react-native";
 import { GalleryPreview } from "@/components/gallery-card";
 import { api } from "~/convex/_generated/api";
-import { Doc } from "~/convex/_generated/dataModel";
+import type { Doc } from "~/convex/_generated/dataModel";
 
 function GalleryListItemComponent({
 	gallery,
@@ -15,40 +15,34 @@ function GalleryListItemComponent({
 	isSelected: boolean;
 	onSelectedChange: (selected: boolean) => void;
 }) {
-	const preview = useQuery(api.galleryArtifacts.getGalleryPreview, {
+	const cardData = useQuery(api.galleryArtifacts.getGalleryCardData, {
 		galleryId: gallery._id,
 	});
-	const count = useQuery(api.galleryArtifacts.countArtifactsInGallery, {
-		galleryId: gallery._id,
-	});
-
-	const images = useMemo(
-		() =>
-			(preview ?? [])
-				.map((artifact) => artifact.image)
-				.filter((url): url is string => Boolean(url)),
-		[preview],
-	);
+	const items = cardData?.items ?? [];
 
 	return (
 		<ControlField
 			isSelected={isSelected}
 			onSelectedChange={onSelectedChange}
-			className="mb-4"
+			className={cn("mb-4", {
+				"opacity-50": !isSelected,
+			})}
 		>
-			<View className="flex-1 flex-row items-center gap-2">
-				<View className="size-12 rounded-xl overflow-hidden">
-					<GalleryPreview count={images.length} images={images} />
+			<View className={cn("flex-1 flex-row items-center gap-2", {
+				"opacity-80": !isSelected,
+			})}>
+				<View className="size-12 ">
+					<GalleryPreview items={items} variant="compact" className="rounded-xl" />
 				</View>
 				<View>
 					<Label className="text-lg">{gallery.title}</Label>
-					<Text className="text-sm text-muted">
-						{count ?? "…"} {count === 1 ? "item" : "items"}
+					<Text className="text-muted text-sm">
+						{cardData?.count ?? "…"} {cardData?.count === 1 ? "item" : "items"}
 					</Text>
 				</View>
 			</View>
 			<ControlField.Indicator>
-				<Checkbox className="mt-0.5 bg-transparent size-8 shadow-none border border-border" />
+				<Checkbox className="mt-0.5 size-8 border border-border bg-transparent shadow-none border-0" />
 			</ControlField.Indicator>
 		</ControlField>
 	);

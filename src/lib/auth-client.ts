@@ -1,6 +1,6 @@
 import { expoClient } from "@better-auth/expo/client";
 import { convexClient } from "@convex-dev/better-auth/client/plugins";
-import { usernameClient } from "better-auth/client/plugins";
+import { emailOTPClient, usernameClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { isRunningInExpoGo } from "expo";
 import Constants from "expo-constants";
@@ -18,5 +18,6 @@ export const authClient = createAuthClient({
 		}),
 		convexClient(),
 		usernameClient(),
+		emailOTPClient(),
 	],
 });

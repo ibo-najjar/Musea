@@ -6,25 +6,29 @@ import {
 	cn,
 	Description,
 	FieldError,
-	Input,
 	InputGroup,
 	Label,
 	TextField,
 	useThemeColor,
 } from "heroui-native";
 import { Controller, useForm } from "react-hook-form";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import z from "zod";
 import ModalCloseButton from "@/components/layout/modal-close-button";
 import ModalSubmitButton from "@/components/layout/modal-submit-button";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/form/input/switch";
+import { Input } from "@/components/ui/input";
 import ScrollView from "@/components/ui/scrollview";
+import { Text } from "@/components/ui/text";
 import { TouchableGlass } from "@/components/ui/touchable-glass";
 import { useAppToast } from "@/lib/toast";
 import { api } from "~/convex/_generated/api";
 
 const createGallerySchema = z.object({
 	name: z.string().min(1, "Name is required").max(100, "Name is too long"),
+	autoFileEnabled: z.boolean(),
 });
 
 export type CreateGalleryForm = z.infer<typeof createGallerySchema>;
@@ -44,12 +48,15 @@ export default function CreateBoardSheet() {
 		formState: { errors, isSubmitting },
 	} = useForm<CreateGalleryForm>({
 		resolver: zodResolver(createGallerySchema),
-		defaultValues: { name: "" },
+		defaultValues: { name: "", autoFileEnabled: true },
 	});
 
 	const onSubmit = async (data: CreateGalleryForm) => {
 		try {
-			await createGallery({ title: data.name });
+			await createGallery({
+				title: data.name,
+				autoFileDisabled: !data.autoFileEnabled,
+			});
 			toast.success("Gallery created");
 			router.back();
 		} catch (err) {
@@ -75,7 +82,7 @@ export default function CreateBoardSheet() {
 				contentContainerClassName="px-4 gap-4 mb-20"
 			>
 				<Button
-					className="size-40 mx-auto rounded-4xl"
+					className="mx-auto size-40 rounded-4xl"
 					isGlass
 					variant="secondary"
 				>
@@ -111,6 +118,23 @@ export default function CreateBoardSheet() {
 						{errors.name?.message}
 					</FieldError>
 				</TextField>
+				<View className="flex-row items-center justify-between">
+					<View className="flex-1 pr-4">
+						<Text className="font-medium text-foreground text-sm">
+							Auto-file new saves
+						</Text>
+						<Text className="mt-0.5 text-muted text-xs">
+							Let AI file matching saves into this gallery automatically.
+						</Text>
+					</View>
+					<Controller
+						control={control}
+						name="autoFileEnabled"
+						render={({ field: { onChange, value } }) => (
+							<Switch isSelected={value} onSelectedChange={onChange} />
+						)}
+					/>
+				</View>
 			</ScrollView>
 		</>
 	);

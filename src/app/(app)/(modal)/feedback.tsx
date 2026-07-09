@@ -1,11 +1,12 @@
 import { useMutation } from "convex/react";
 import { useRouter } from "expo-router";
-import { Input, useThemeColor } from "heroui-native";
+import { useThemeColor } from "heroui-native";
 import { useState } from "react";
 import { Alert, TextInput } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import ModalCloseButton from "@/components/layout/modal-close-button";
 import ModalSubmitButton from "@/components/layout/modal-submit-button";
+import { Input } from "@/components/ui/input";
 import { api } from "~/convex/_generated/api";
 
 export default function FeedbackModal() {

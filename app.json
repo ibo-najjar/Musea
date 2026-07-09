@@ -32,7 +32,13 @@
 			[
 				"expo-splash-screen",
 				{
-					"backgroundColor": "#EFEFEF"
+					"backgroundColor": "#ffffff",
+					"image": "./assets/onboarding/splash-icon-light.png",
+					"dark": {
+						"backgroundColor": "#000000",
+						"image": "./assets/onboarding/splash-icon-dark.png"
+					},
+					"imageWidth": 300 // TODO: CONFIRM THIS
 				}
 			],
 			[
@@ -43,8 +49,6 @@
 					"recordAudioAndroid": true
 				}
 			],
-			"expo-audio",
-			"expo-background-task",
 			[
 				"expo-build-properties",
 				{
@@ -87,17 +91,6 @@
 				"expo-image-picker",
 				{
 					"photosPermission": "The app accesses your photos so you can set a profile picture and save images to your galleries."
-				}
-			],
-			[
-				"expo-sqlite",
-				{
-					"enableFTS": true,
-					"useSQLCipher": true,
-					"android": {
-						"enableFTS": false,
-						"useSQLCipher": false
-					}
 				}
 			],
 			[

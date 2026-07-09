@@ -2,7 +2,7 @@ import { SymbolView } from "expo-symbols";
 import { Checkbox, cn, PressableFeedback } from "heroui-native";
 import { useState } from "react";
 import { Pressable, useWindowDimensions, View } from "react-native";
-import { Doc } from "~/convex/_generated/dataModel";
+import type { Doc } from "~/convex/_generated/dataModel";
 import Image from "./ui/image";
 
 const NUM_COLUMNS = 2;
@@ -25,13 +25,14 @@ const SelectableMasonryCard = ({
 		<PressableFeedback onPress={() => onToggle(item._id)}>
 			<PressableFeedback.Scale>
 				<View
-					className={cn("m-2 overflow-hidden rounded-2xl bg-surface relative")}
+					className={cn("relative m-2 overflow-hidden rounded-2xl bg-surface")}
 				>
 					<Image
 						className="w-full"
 						source={{ uri: item.image }}
 						style={{ height: imgHeight, width: columnWidth }}
 						contentFit="cover"
+						cachePolicy="memory-disk"
 						onLoad={(e) => {
 							const { width, height } = e.source;
 							if (width && height) {

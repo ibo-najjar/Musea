@@ -10,6 +10,7 @@ import {
 	mutation,
 	query,
 } from "./_generated/server";
+import { resolveSourceType } from "./lib/sourceType";
 import schema from "./schema";
 
 const rateLimiter = new RateLimiter(components.rateLimiter, {
@@ -25,6 +26,9 @@ export const createArtifact = mutation({
 		image: v.optional(v.string()),
 		videoUrl: v.optional(v.string()),
 		text: v.optional(v.string()),
+		origin: v.optional(
+			v.union(v.literal("gallery"), v.literal("files"), v.literal("richtext")),
+		),
 		textSize: v.optional(
 			v.union(
 				v.literal("sm"),
@@ -44,16 +48,7 @@ export const createArtifact = mutation({
 	},
 	handler: async (
 		ctx,
-		{
-			sourceUrl,
-			title,
-			description,
-			image,
-			videoUrl,
-			text,
-			textSize,
-			textWeight,
-		},
+		{ sourceUrl, title, description, image, videoUrl, text, origin },
 	): Promise<Id<"artificats">> => {
 		const user = await ctx.runQuery(api.auth.getCurrentUser);
 
@@ -61,7 +56,8 @@ export const createArtifact = mutation({
 			throw new Error("Must be logged in to create an artifact");
 		}
 
-		const isTextOnly = !!text && !sourceUrl;
+		const isTextOnly = origin === "richtext";
+		const resolvedOrigin = origin ?? (isTextOnly ? "richtext" : undefined);
 
 		// Only URL artifacts get AI enrichment; enforce a per-user daily quota.
 		// Over quota: save as ready with the raw title and skip enrichment silently.
@@ -75,14 +71,12 @@ export const createArtifact = mutation({
 
 		const artificatId = await ctx.db.insert("artificats", {
 			source: sourceUrl,
+			sourceType: resolveSourceType(sourceUrl, resolvedOrigin),
 			userId: user._id,
 			title: title?.trim() || sourceUrl || text?.slice(0, 80) || "Untitled",
 			description,
 			image,
 			videoUrl,
-			text,
-			textSize,
-			textWeight,
 			status: willEnrich ? "pending" : "ready",
 		});
 
@@ -94,6 +88,12 @@ export const createArtifact = mutation({
 			// Quotes/notes: embedding-only so they surface in vector search.
 			// Embeddings are negligible cost, so this skips the AI enrichment quota.
 			await ctx.scheduler.runAfter(0, internal.ai.embedTextArtifact, {
+				artificatId,
+			});
+		} else if (sourceUrl) {
+			// Over the enrichment quota: still scrape OG metadata (no LLM cost)
+			// so the artifact isn't left empty.
+			await ctx.scheduler.runAfter(0, internal.ai.scrapeArtifactMetadata, {
 				artificatId,
 			});
 		}
@@ -137,6 +137,22 @@ export const listArtifacts = query({
 				),
 			),
 		),
+		filterSourceTypes: v.optional(
+			v.array(
+				v.union(
+					v.literal("pinterest"),
+					v.literal("x"),
+					v.literal("youtube"),
+					v.literal("reddit"),
+					v.literal("tiktok"),
+					v.literal("instagram"),
+					v.literal("gallery"),
+					v.literal("files"),
+					v.literal("link"),
+					v.literal("richtext"),
+				),
+			),
+		),
 	},
 	handler: async (ctx, args): Promise<PaginationResult<Doc<"artificats">>> => {
 		const user = await ctx.runQuery(api.auth.getCurrentUser);
@@ -154,12 +170,19 @@ export const listArtifacts = query({
 					if (type === "image") return b.neq(b.field("image"), undefined);
 					if (type === "video") return b.neq(b.field("videoUrl"), undefined);
 					if (type === "quote")
-						return b.and(
-							b.neq(b.field("text"), undefined),
-							b.eq(b.field("image"), undefined),
-						);
+						return b.and(b.eq(b.field("sourceType"), "richtext"));
 					return b.neq(b.field("source"), undefined); // link
 				});
+				return preds.length === 1 ? preds[0] : b.or(...preds);
+			});
+		}
+
+		const filterSourceTypes = args.filterSourceTypes;
+		if (filterSourceTypes && filterSourceTypes.length > 0) {
+			q = q.filter((b) => {
+				const preds = filterSourceTypes.map((type) =>
+					b.eq(b.field("sourceType"), type),
+				);
 				return preds.length === 1 ? preds[0] : b.or(...preds);
 			});
 		}
@@ -170,10 +193,7 @@ export const listArtifacts = query({
 
 export const findArtifactByUrl = query({
 	args: { sourceUrl: v.string() },
-	handler: async (
-		ctx,
-		{ sourceUrl },
-	): Promise<Doc<"artificats"> | null> => {
+	handler: async (ctx, { sourceUrl }): Promise<Doc<"artificats"> | null> => {
 		const user = await ctx.runQuery(api.auth.getCurrentUser);
 		if (!user) throw new Error("Must be logged in");
 
@@ -247,7 +267,7 @@ export const deleteArtifact = mutation({
 			throw new Error("Not found");
 		}
 
-		// Cascade: remove this artifact's gallery link rows
+		// Cascade: remove this artifact's gallery link rows (galleries themselves stay)
 		const links = await ctx.db
 			.query("galleryArtifacts")
 			.withIndex("by_artifact", (q) => q.eq("artificatId", artificatId))

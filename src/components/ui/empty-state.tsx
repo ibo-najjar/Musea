@@ -1,5 +1,5 @@
 import { cn, Typography } from "heroui-native";
-import { View, ViewProps } from "react-native";
+import { View, type ViewProps } from "react-native";
 import { Button } from "./button";
 
 interface EmptyStateProps extends ViewProps {

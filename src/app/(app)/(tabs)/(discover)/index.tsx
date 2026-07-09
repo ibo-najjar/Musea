@@ -5,15 +5,22 @@ import {
 	usePaginatedQuery,
 	useQuery,
 } from "convex/react";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import { Typography, useThemeColor } from "heroui-native";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, useWindowDimensions, View } from "react-native";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import {
+	Alert,
+	InteractionManager,
+	useWindowDimensions,
+	View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MasonryCard from "@/components/mansory-card";
 import MasonrySkeletonGrid from "@/components/masonry-skeleton";
 import { Button } from "@/components/ui/button";
 import Image from "@/components/ui/image";
+import { Text } from "@/components/ui/text";
+import { SOURCE_ICONS, SOURCE_LABELS, type SourceType } from "@/lib/sources";
 import { useAppToast } from "@/lib/toast";
 import { api } from "~/convex/_generated/api";
 import type { Doc, Id } from "~/convex/_generated/dataModel";
@@ -23,20 +30,32 @@ const SEARCH_DEBOUNCE_MS = 600;
 type SortDir = "desc" | "asc";
 type FilterType = "image" | "video" | "quote" | "link";
 
+const FILTER_LABELS: Record<FilterType, string> = {
+	image: "Images",
+	video: "Videos",
+	quote: "Quotes",
+	link: "Links",
+};
+
 export default function HomeScreen() {
 	const { top } = useSafeAreaInsets();
 	const foreground = useThemeColor("foreground");
 	const { height } = useWindowDimensions();
 
 	const [sortDir, setSortDir] = useState<SortDir>("desc");
-	const [filterTypes, setFilterTypes] = useState<FilterType[]>([]);
+	const [filterType, setFilterType] = useState<FilterType | null>(null);
+	const [sourceType, setSourceType] = useState<SourceType | null>(null);
 
-	const toggleFilter = useCallback((type: FilterType) => {
-		setFilterTypes((prev) =>
-			prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+	// Defer attaching the native search bar / toolbar until the tab transition
+	// finishes — otherwise iOS builds them synchronously during the animation
+	// and freezes the screen for ~1s on tab press.
+	const [headerReady, setHeaderReady] = useState(false);
+	useEffect(() => {
+		const task = InteractionManager.runAfterInteractions(() =>
+			setHeaderReady(true),
 		);
+		return () => task.cancel();
 	}, []);
-	const clearFilters = useCallback(() => setFilterTypes([]), []);
 
 	const {
 		results: allArtifacts,
@@ -44,7 +63,11 @@ export default function HomeScreen() {
 		loadMore,
 	} = usePaginatedQuery(
 		api.artifacts.listArtifacts,
-		{ sortDir, filterTypes: filterTypes.length ? filterTypes : undefined },
+		{
+			sortDir,
+			filterTypes: filterType ? [filterType] : undefined,
+			filterSourceTypes: sourceType ? [sourceType] : undefined,
+		},
 		{ initialNumItems: 24 },
 	);
 	const currentUser = useQuery(api.auth.getCurrentUser);
@@ -128,14 +151,18 @@ export default function HomeScreen() {
 	if (searching || (!isSearch && status === "LoadingFirstPage")) {
 		return (
 			<View className="flex-1 bg-background">
-				<NativeSearchBarHeader
-					setQuery={setQuery}
-					sortDir={sortDir}
-					setSortDir={setSortDir}
-					filterTypes={filterTypes}
-					toggleFilter={toggleFilter}
-					clearFilters={clearFilters}
-				/>
+				{headerReady && (
+					<NativeSearchBarHeader
+						setQuery={setQuery}
+						sortDir={sortDir}
+						setSortDir={setSortDir}
+						filterType={filterType}
+						setFilterType={setFilterType}
+						sourceType={sourceType}
+						setSourceType={setSourceType}
+					/>
+				)}
+
 				<MasonrySkeletonGrid count={12} />
 			</View>
 		);
@@ -143,14 +170,18 @@ export default function HomeScreen() {
 
 	return (
 		<View className="flex-1 bg-background">
-			<NativeSearchBarHeader
-				setQuery={setQuery}
-				sortDir={sortDir}
-				setSortDir={setSortDir}
-				filterTypes={filterTypes}
-				toggleFilter={toggleFilter}
-				clearFilters={clearFilters}
-			/>
+			{headerReady && (
+				<NativeSearchBarHeader
+					setQuery={setQuery}
+					sortDir={sortDir}
+					setSortDir={setSortDir}
+					filterType={filterType}
+					setFilterType={setFilterType}
+					sourceType={sourceType}
+					setSourceType={setSourceType}
+				/>
+			)}
+
 			<FlashList
 				contentInsetAdjustmentBehavior="automatic"
 				data={artifacts}
@@ -173,6 +204,13 @@ export default function HomeScreen() {
 								<Typography.Heading type="h3">no results</Typography.Heading>
 								<Typography.Paragraph color="muted">
 									try different words
+								</Typography.Paragraph>
+							</>
+						) : filterType !== null || sourceType !== null ? (
+							<>
+								<Typography.Heading type="h3">no matches</Typography.Heading>
+								<Typography.Paragraph color="muted">
+									try a different filter
 								</Typography.Paragraph>
 							</>
 						) : (
@@ -203,37 +241,39 @@ export default function HomeScreen() {
 	);
 }
 
-const NativeSearchBarHeader = ({
+const NativeSearchBarHeader = memo(function NativeSearchBarHeader({
 	setQuery,
 	sortDir,
 	setSortDir,
-	filterTypes,
-	toggleFilter,
-	clearFilters,
+	filterType,
+	setFilterType,
+	sourceType,
+	setSourceType,
 }: {
 	setQuery: (query: string) => void;
 	sortDir: SortDir;
 	setSortDir: (dir: SortDir) => void;
-	filterTypes: FilterType[];
-	toggleFilter: (type: FilterType) => void;
-	clearFilters: () => void;
-}) => {
-	const router = useRouter();
+	filterType: FilterType | null;
+	setFilterType: (type: FilterType | null) => void;
+	sourceType: SourceType | null;
+	setSourceType: (type: SourceType | null) => void;
+}) {
 	const accent = useThemeColor("accent");
 
-	const hasFilters = filterTypes.length > 0;
+	const hasFilter = filterType !== null || sourceType !== null;
 
 	return (
 		<>
 			<Stack.Toolbar placement="left">
+				{/* Accent the toolbar button while a specific filter (not "All") is active. */}
 				<Stack.Toolbar.Menu
 					icon={
-						hasFilters
+						hasFilter
 							? "line.3.horizontal.decrease.circle.fill"
 							: "line.3.horizontal.decrease.circle"
 					}
-					variant={hasFilters ? "prominent" : "plain"}
-					tintColor={hasFilters ? accent : undefined}
+					variant={hasFilter ? "prominent" : "plain"}
+					tintColor={hasFilter ? accent : undefined}
 				>
 					<Stack.Toolbar.Menu inline title="Sort By">
 						<Stack.Toolbar.MenuAction
@@ -251,52 +291,72 @@ const NativeSearchBarHeader = ({
 							Oldest
 						</Stack.Toolbar.MenuAction>
 					</Stack.Toolbar.Menu>
-					<Stack.Toolbar.Menu title="Filter">
-						<Stack.Toolbar.Menu inline>
-							<Stack.Toolbar.MenuAction
-								isOn={filterTypes.includes("image")}
-								onPress={() => toggleFilter("image")}
-								unstable_keepPresented
-								icon={"photo"}
-							>
-								Images
-							</Stack.Toolbar.MenuAction>
-							<Stack.Toolbar.MenuAction
-								isOn={filterTypes.includes("video")}
-								onPress={() => toggleFilter("video")}
-								unstable_keepPresented
-								icon={"video"}
-							>
-								Videos
-							</Stack.Toolbar.MenuAction>
-							<Stack.Toolbar.MenuAction
-								isOn={filterTypes.includes("quote")}
-								onPress={() => toggleFilter("quote")}
-								unstable_keepPresented
-								icon={"text.rectangle"}
-							>
-								Quotes
-							</Stack.Toolbar.MenuAction>
-							<Stack.Toolbar.MenuAction
-								isOn={filterTypes.includes("link")}
-								onPress={() => toggleFilter("link")}
-								unstable_keepPresented
-								icon={"link"}
-							>
-								Links
-							</Stack.Toolbar.MenuAction>
-						</Stack.Toolbar.Menu>
-					</Stack.Toolbar.Menu>
-
-					<Stack.Toolbar.MenuAction
-						hidden={!hasFilters}
-						destructive
-						onPress={clearFilters}
-						icon={"xmark.circle"}
-						subtitle={filterTypes.join(", ") || "No filters applied"}
+					{/* Single-select: the current choice shows next to the "Filter"
+						    label; "All" clears the filter. */}
+					<Stack.Toolbar.Menu
+						title={`Filter: ${filterType ? FILTER_LABELS[filterType] : "All"}`}
 					>
-						Remove filters
-					</Stack.Toolbar.MenuAction>
+						<Stack.Toolbar.MenuAction
+							isOn={filterType === null}
+							onPress={() => setFilterType(null)}
+							icon={"square.grid.2x2.fill"}
+						>
+							All
+						</Stack.Toolbar.MenuAction>
+						<Stack.Toolbar.MenuAction
+							isOn={filterType === "image"}
+							onPress={() => setFilterType("image")}
+							icon={"photo"}
+						>
+							Images
+						</Stack.Toolbar.MenuAction>
+						<Stack.Toolbar.MenuAction
+							isOn={filterType === "video"}
+							onPress={() => setFilterType("video")}
+							icon={"video"}
+						>
+							Videos
+						</Stack.Toolbar.MenuAction>
+						<Stack.Toolbar.MenuAction
+							isOn={filterType === "quote"}
+							onPress={() => setFilterType("quote")}
+							icon={"text.rectangle"}
+						>
+							Quotes
+						</Stack.Toolbar.MenuAction>
+						<Stack.Toolbar.MenuAction
+							isOn={filterType === "link"}
+							onPress={() => setFilterType("link")}
+							icon={"link"}
+						>
+							Links
+						</Stack.Toolbar.MenuAction>
+					</Stack.Toolbar.Menu>
+					{/* Single-select source filter; brand PNG icons render in
+						    original colors. "All" clears it. */}
+					<Stack.Toolbar.Menu
+						title={`Source: ${sourceType ? SOURCE_LABELS[sourceType] : "All"}`}
+					>
+						<Stack.Toolbar.MenuAction
+							isOn={sourceType === null}
+							onPress={() => setSourceType(null)}
+							icon={"square.grid.2x2.fill"}
+						>
+							All
+						</Stack.Toolbar.MenuAction>
+						{(Object.keys(SOURCE_LABELS) as SourceType[]).map((type) => (
+							<Stack.Toolbar.MenuAction
+								key={type}
+								isOn={sourceType === type}
+								onPress={() => setSourceType(type)}
+								// icon={SOURCE_ICONS[type]}
+								iconRenderingMode="original"
+								discoverabilityLabel={`Filter by ${SOURCE_LABELS[type]}`}
+							>
+								{SOURCE_LABELS[type]}
+							</Stack.Toolbar.MenuAction>
+						))}
+					</Stack.Toolbar.Menu>
 				</Stack.Toolbar.Menu>
 			</Stack.Toolbar>
 
@@ -311,4 +371,4 @@ const NativeSearchBarHeader = ({
 			/>
 		</>
 	);
-};
+});

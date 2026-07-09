@@ -1,5 +1,6 @@
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 import { TouchableWithoutFeedback, type ViewProps } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";

@@ -1,7 +1,7 @@
 import { useQuery } from "convex/react";
 import { View } from "react-native";
 import { api } from "~/convex/_generated/api";
-import { Doc, Id } from "~/convex/_generated/dataModel";
+import type { Doc, Id } from "~/convex/_generated/dataModel";
 import { GalleryPreview } from "./gallery-card";
 import { Text } from "./ui/text";
 
@@ -15,14 +15,10 @@ export const SelectedGallery = ({
 	galleryId: Id<"gallery">;
 	SIZE?: number;
 }) => {
-	const preview = useQuery(api.galleryArtifacts.getGalleryPreview, {
+	const cardData = useQuery(api.galleryArtifacts.getGalleryCardData, {
 		galleryId: galleryId,
 	});
-
-	const images = (preview ?? [])
-		.map((artifact) => artifact.image)
-		.filter((url): url is string => Boolean(url));
-	const count = preview?.length ?? 0;
+	const items = cardData?.items ?? [];
 	return (
 		<View
 			className="overflow-hidden rounded border-2 border-surface bg-surface"
@@ -31,26 +27,26 @@ export const SelectedGallery = ({
 				height: SIZE,
 			}}
 		>
-			<GalleryPreview count={count} images={images} className="rounded-none" />
+			<GalleryPreview
+				items={items}
+				className="rounded-none"
+				variant="compact"
+			/>
 		</View>
 	);
 };
 
 const GalleryItem = ({ galleryId }: { galleryId: Id<"gallery"> }) => {
-	const preview = useQuery(api.galleryArtifacts.getGalleryPreview, {
+	const cardData = useQuery(api.galleryArtifacts.getGalleryCardData, {
 		galleryId: galleryId,
 	});
-
-	const images = (preview ?? [])
-		.map((artifact) => artifact.image)
-		.filter((url): url is string => Boolean(url));
-	const count = preview?.length ?? 0;
+	const items = cardData?.items ?? [];
 	return (
 		<GalleryPreview
-			count={count}
-			images={images}
+			items={items}
 			className="rounded-none"
 			gapClassName="gap-0.5"
+			variant="compact"
 		/>
 	);
 };
@@ -88,14 +84,14 @@ export const SelectedGalleriesStack = ({
 
 			{remaining > 0 && (
 				<View
-					className="items-center justify-center rounded bg-surface-tertiary border-2 border-surface"
+					className="items-center justify-center rounded border-2 border-surface bg-surface-tertiary"
 					style={{
 						width: SIZE,
 						height: SIZE,
 						marginLeft: -OVERLAP,
 					}}
 				>
-					<Text className="text-[10px] font-semibold text-muted">
+					<Text className="font-semibold text-[10px] text-muted">
 						+{remaining}
 					</Text>
 				</View>

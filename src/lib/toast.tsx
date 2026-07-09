@@ -42,6 +42,24 @@ export function useAppToast() {
 						/>
 					),
 				}),
+			// Toast with a tappable action button (e.g. "Filed in Recipes · Undo").
+			action: (label: string, actionLabel: string, onAction: () => void) =>
+				toast.show({
+					label,
+					actionLabel,
+					onActionPress: ({ hide }) => {
+						onAction();
+						hide();
+					},
+					icon: (
+						<SymbolView
+							name="sparkles"
+							size={20}
+							tintColor={success}
+							weight="medium"
+						/>
+					),
+				}),
 		}),
 		[toast, success, danger],
 	);

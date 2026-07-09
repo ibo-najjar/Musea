@@ -2,11 +2,12 @@ import { expo } from "@better-auth/expo";
 import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { convex } from "@convex-dev/better-auth/plugins";
 import { type BetterAuthOptions, betterAuth } from "better-auth/minimal";
-import { username } from "better-auth/plugins";
+import { emailOTP, username } from "better-auth/plugins";
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import authConfig from "./auth.config";
+import { sendEmail } from "./email";
 
 // The component client has methods needed for integrating Convex with Better Auth,
 // as well as helper methods for general use.
@@ -23,7 +24,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 		// Configure simple, non-verified email/password to get started
 		emailAndPassword: {
 			enabled: true,
-			requireEmailVerification: false,
+			requireEmailVerification: true,
 		},
 		databaseHooks: {
 			user: {
@@ -66,6 +67,17 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 			expo(),
 			convex({ authConfig }),
 			username(),
+			emailOTP({
+				otpLength: 6,
+				expiresIn: 600,
+				sendVerificationOTP: async ({ email, otp, type }) => {
+					const subject =
+						type === "forget-password"
+							? "Reset your Musea password"
+							: "Verify your Musea email";
+					await sendEmail({ to: email, subject, text: `Your code is ${otp}` });
+				},
+			}),
 		],
 	});
 };

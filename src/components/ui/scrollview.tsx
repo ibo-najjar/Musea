@@ -1,5 +1,5 @@
 import { cn } from "heroui-native";
-import { FC } from "react";
+import type { FC } from "react";
 import type { ScrollViewProps } from "react-native";
 import { ScrollView as RNScrollView } from "react-native";
 

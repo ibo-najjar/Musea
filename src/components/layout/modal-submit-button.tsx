@@ -24,7 +24,7 @@ const ModalSubmitButton = ({
 		<Stack.Toolbar placement="right">
 			{isLoading ? (
 				<Stack.Toolbar.View>
-					<Pressable className="size-8 justify-center items-center">
+					<Pressable className="size-8 items-center justify-center">
 						<Spinner color={muted} />
 					</Pressable>
 				</Stack.Toolbar.View>
